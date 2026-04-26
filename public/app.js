@@ -73,7 +73,7 @@ function matchStatus(match) {
 }
 
 async function fetchData() {
-  const res = await fetch(`${BASE_URL}/api`, { cache: 'no-store' });
+  const res = await fetch(`${BASE_URL}/api?r=1`, { cache: 'no-store' });
   if (!res.ok) throw new Error('Impossible de charger les scores.');
   state.data = await res.json();
 }
@@ -85,7 +85,7 @@ let saveDebounceTimer = null;
 function saveData() {
   clearTimeout(saveDebounceTimer);
   return new Promise((resolve, reject) => {
-    saveDebounceTimer = setTimeout(() => executeSave().then(resolve).catch(reject), 400);
+    saveDebounceTimer = setTimeout(() => executeSave().then(resolve).catch(reject), 800);
   });
 }
 
