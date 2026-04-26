@@ -81,18 +81,21 @@ async function fetchData() {
 async function saveData() {
   state.saving = true;
   render();
-  const res = await fetch(`${BASE_URL}/api`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(state.data),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || 'Impossible de sauvegarder.');
+  try {
+    const res = await fetch(`${BASE_URL}/api`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state.data),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || 'Impossible de sauvegarder.');
+    }
+    state.data = await res.json();
+  } finally {
+    state.saving = false;
+    render();
   }
-  state.data = await res.json();
-  state.saving = false;
-  render();
 }
 
 function setHole(matchId, holeNumber, result) {
@@ -103,21 +106,21 @@ function setHole(matchId, holeNumber, result) {
   if (index >= 0) match.holes[index].result = result;
   else match.holes.push({ hole: holeNumber, result });
   match.holes.sort((a, b) => a.hole - b.hole);
-  saveData().catch(alert);
+  saveData().catch((e) => alert(e.message));
 }
 
 function deleteHole(matchId, holeNumber) {
   const match = state.data.matches.find((m) => m.id === matchId);
   if (!match) return;
   match.holes = match.holes.filter((h) => h.hole !== holeNumber);
-  saveData().catch(alert);
+  saveData().catch((e) => alert(e.message));
 }
 
 function updateNames(matchId, field, value) {
   const match = state.data.matches.find((m) => m.id === matchId);
   if (!match) return;
   match[field] = value;
-  saveData().catch(alert);
+  saveData().catch((e) => alert(e.message));
 }
 
 function renderChoiceButtons(match, holeNumber) {
@@ -289,7 +292,7 @@ matchesEl.addEventListener('click', (event) => {
     const match = state.data.matches.find((m) => m.id === matchId);
     if (match) {
       match.holes = [];
-      saveData().catch(alert);
+      saveData().catch((e) => alert(e.message));
     }
   }
 });
@@ -329,7 +332,7 @@ $('#copyLiveLink')?.addEventListener('click', async () => {
 $('#resetAll')?.addEventListener('click', () => {
   if (!confirm('Réinitialiser les deux matchs ?')) return;
   state.data.matches.forEach((match) => { match.holes = []; });
-  saveData().catch(alert);
+  saveData().catch((e) => alert(e.message));
 });
 
 async function init() {

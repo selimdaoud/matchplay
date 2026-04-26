@@ -53,6 +53,7 @@ app.post('/api', async (req, res) => {
     const data = validateData(req.body);
     res.json(await writeData(data));
   } catch (error) {
+    console.error('[POST /api]', error);
     res.status(400).json({ error: error.message || 'Unable to save scores.' });
   }
 });
