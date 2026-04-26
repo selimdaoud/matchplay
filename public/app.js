@@ -78,7 +78,15 @@ async function fetchData() {
   state.data = await res.json();
 }
 
+let saveInFlight = false;
+let savePending = false;
+
 async function saveData() {
+  if (saveInFlight) {
+    savePending = true;
+    return;
+  }
+  saveInFlight = true;
   state.saving = true;
   render();
   try {
@@ -93,8 +101,13 @@ async function saveData() {
     }
     state.data = await res.json();
   } finally {
+    saveInFlight = false;
     state.saving = false;
     render();
+    if (savePending) {
+      savePending = false;
+      saveData();
+    }
   }
 }
 
