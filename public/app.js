@@ -1,3 +1,5 @@
+const BASE_URL = window.location.pathname.replace(/\/live\/?$/, '').replace(/\/$/, '');
+
 const state = {
   data: { matches: [] },
   readonly: window.location.pathname.endsWith('/live') || new URLSearchParams(window.location.search).get('readonly') === '1',
@@ -71,7 +73,7 @@ function matchStatus(match) {
 }
 
 async function fetchData() {
-  const res = await fetch('api', { cache: 'no-store' });
+  const res = await fetch(`${BASE_URL}/api`, { cache: 'no-store' });
   if (!res.ok) throw new Error('Impossible de charger les scores.');
   state.data = await res.json();
 }
@@ -79,7 +81,7 @@ async function fetchData() {
 async function saveData() {
   state.saving = true;
   render();
-  const res = await fetch('api', {
+  const res = await fetch(`${BASE_URL}/api`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(state.data),
@@ -319,8 +321,7 @@ $('#modalBackdrop').addEventListener('click', (event) => {
 });
 
 $('#copyLiveLink')?.addEventListener('click', async () => {
-  const base = window.location.pathname.replace(/\/$/, '').replace(/\/live$/, '');
-  const url = `${window.location.origin}${base}/live`;
+  const url = `${window.location.origin}${BASE_URL}/live`;
   await navigator.clipboard.writeText(url);
   alert('Lien live copié.');
 });
