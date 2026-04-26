@@ -84,7 +84,9 @@ let saveDebounceTimer = null;
 
 function saveData() {
   clearTimeout(saveDebounceTimer);
-  saveDebounceTimer = setTimeout(executeSave, 400);
+  return new Promise((resolve, reject) => {
+    saveDebounceTimer = setTimeout(() => executeSave().then(resolve).catch(reject), 400);
+  });
 }
 
 async function executeSave() {
