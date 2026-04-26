@@ -210,7 +210,7 @@ function renderMatch(match) {
   `;
 
   const expandedSection = `
-    <div class="expanded-section"${isExpanded ? '' : ' style="display:none"'}>
+    <div class="expanded-section"${isExpanded || state.readonly ? '' : ' style="display:none"'}>
       ${state.readonly ? '' : `
         <div class="edit-names">
           <input value="${ref}" placeholder="Joueur de référence" data-action="name" data-match="${match.id}" data-field="referencePlayer">
