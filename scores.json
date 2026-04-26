@@ -1,0 +1,19 @@
+{
+  "matches": [
+    {
+      "id": "match-1",
+      "title": "Match 1",
+      "referencePlayer": "sd",
+      "opponent": "ed",
+      "holes": []
+    },
+    {
+      "id": "match-2",
+      "title": "Match 2",
+      "referencePlayer": "oliv",
+      "opponent": "Joueur D",
+      "holes": []
+    }
+  ],
+  "updatedAt": "2026-04-26T08:50:42.430Z"
+}
