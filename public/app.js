@@ -80,8 +80,14 @@ async function fetchData() {
 
 let saveInFlight = false;
 let savePending = false;
+let saveDebounceTimer = null;
 
-async function saveData() {
+function saveData() {
+  clearTimeout(saveDebounceTimer);
+  saveDebounceTimer = setTimeout(executeSave, 400);
+}
+
+async function executeSave() {
   if (saveInFlight) {
     savePending = true;
     return;
@@ -106,7 +112,7 @@ async function saveData() {
     render();
     if (savePending) {
       savePending = false;
-      saveData();
+      executeSave();
     }
   }
 }
