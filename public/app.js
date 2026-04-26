@@ -3,6 +3,7 @@ const state = {
   readonly: window.location.pathname.endsWith('/live') || new URLSearchParams(window.location.search).get('readonly') === '1',
   editing: null,
   saving: false,
+  expanded: new Set(),
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -174,6 +175,42 @@ function renderMatch(match) {
   const nextHole = status.nextHole;
   const ref = escapeHtml(match.referencePlayer || 'Référence');
   const opp = escapeHtml(match.opponent || 'Adversaire');
+  const isExpanded = state.expanded.has(match.id);
+
+  const bigButtons = state.readonly ? '' : `
+    <div class="big-choice-grid">
+      <button class="big-choice win" data-action="set-hole" data-match="${match.id}" data-hole="${nextHole}" data-result="win">
+        Gagné<small>trou ${nextHole}</small>
+      </button>
+      <button class="big-choice halve" data-action="set-hole" data-match="${match.id}" data-hole="${nextHole}" data-result="halve">
+        ½<small>partagé</small>
+      </button>
+      <button class="big-choice loss" data-action="set-hole" data-match="${match.id}" data-hole="${nextHole}" data-result="loss">
+        Perdu<small>trou ${nextHole}</small>
+      </button>
+    </div>
+  `;
+
+  const expandedSection = `
+    <div class="expanded-section"${isExpanded ? '' : ' style="display:none"'}>
+      ${state.readonly ? '' : `
+        <div class="edit-names">
+          <input value="${ref}" placeholder="Joueur de référence" data-action="name" data-match="${match.id}" data-field="referencePlayer">
+          <input value="${opp}" placeholder="Adversaire" data-action="name" data-match="${match.id}" data-field="opponent">
+        </div>
+      `}
+      <div class="section-title">
+        <span>Historique</span>
+        <span>${holes.length ? `${holes.length} trou${holes.length > 1 ? 's' : ''}` : ''}</span>
+      </div>
+      ${renderHistory(match, holes)}
+      ${state.readonly ? '' : `
+        <div class="footer-actions">
+          <button class="btn subtle" data-action="reset-match" data-match="${match.id}">Reset match</button>
+        </div>
+      `}
+    </div>
+  `;
 
   return `
     <article class="card">
@@ -187,34 +224,13 @@ function renderMatch(match) {
           <div class="status">${escapeHtml(status.detail)}</div>
         </div>
       </div>
-
+      ${bigButtons}
       ${state.readonly ? '' : `
-        <div class="edit-names">
-          <input value="${ref}" placeholder="Joueur de référence" data-action="name" data-match="${match.id}" data-field="referencePlayer">
-          <input value="${opp}" placeholder="Adversaire" data-action="name" data-match="${match.id}" data-field="opponent">
-        </div>
+        <button class="toggle-expand" data-action="toggle-expand" data-match="${match.id}">
+          ${isExpanded ? '▲ Masquer' : '▼ Historique & réglages'}
+        </button>
       `}
-
-      ${!status.finished ? renderChoiceButtons(match, nextHole) : state.readonly ? '' : `
-        <div class="entry">
-          <div class="entry-top">
-            <div class="hole-label">Match terminé</div>
-            <div class="hint">Corrige un trou dans l'historique si nécessaire.</div>
-          </div>
-        </div>
-      `}
-
-      <div class="section-title">
-        <span>Historique</span>
-        <span>${holes.length ? `${holes.length} trou${holes.length > 1 ? 's' : ''}` : ''}</span>
-      </div>
-      ${renderHistory(match, holes)}
-
-      ${state.readonly ? '' : `
-        <div class="footer-actions">
-          <button class="btn subtle" data-action="reset-match" data-match="${match.id}">Reset match</button>
-        </div>
-      `}
+      ${expandedSection}
     </article>
   `;
 }
@@ -262,6 +278,11 @@ matchesEl.addEventListener('click', (event) => {
 
   if (action === 'set-hole') setHole(matchId, hole, target.dataset.result);
   if (action === 'edit-hole') openEditModal(matchId, hole);
+  if (action === 'toggle-expand') {
+    if (state.expanded.has(matchId)) state.expanded.delete(matchId);
+    else state.expanded.add(matchId);
+    render();
+  }
   if (action === 'reset-match' && confirm('Réinitialiser ce match ?')) {
     const match = state.data.matches.find((m) => m.id === matchId);
     if (match) {
