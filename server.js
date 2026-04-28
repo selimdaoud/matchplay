@@ -66,6 +66,26 @@ app.get('/', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+const positions = {};
+
+app.get('/api/positions', (_req, res) => {
+  res.json(positions);
+});
+
+app.post('/api/position', (req, res) => {
+  try {
+    const { matchId, lat, lng } = req.body;
+    if (!matchId || typeof lat !== 'number' || typeof lng !== 'number') {
+      return res.status(400).json({ error: 'Invalid position data' });
+    }
+    positions[matchId] = { lat, lng, updatedAt: new Date().toISOString() };
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[POST /api/position]', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Golf matchplay live app running on http://localhost:${PORT}`);
 });

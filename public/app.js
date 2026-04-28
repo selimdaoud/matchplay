@@ -78,6 +78,108 @@ async function fetchData() {
   state.data = await res.json();
 }
 
+// GPS tracking
+let gpsWatchId = null;
+let gpsMatchId = null;
+let lastSentPos = null;
+
+function distanceM(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const f1 = lat1 * Math.PI / 180, f2 = lat2 * Math.PI / 180;
+  const df = (lat2 - lat1) * Math.PI / 180;
+  const dl = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(df / 2) ** 2 + Math.cos(f1) * Math.cos(f2) * Math.sin(dl / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function sendPosition(lat, lng) {
+  if (lastSentPos && distanceM(lastSentPos.lat, lastSentPos.lng, lat, lng) < 20) return;
+  lastSentPos = { lat, lng };
+  fetch(`${BASE_URL}/api/position`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ matchId: gpsMatchId, lat, lng }),
+  }).catch(() => {});
+}
+
+function startGPS(matchId) {
+  if (!navigator.geolocation) { alert('GPS non disponible sur cet appareil.'); return; }
+  stopGPS();
+  gpsMatchId = matchId;
+  gpsWatchId = navigator.geolocation.watchPosition(
+    (pos) => sendPosition(pos.coords.latitude, pos.coords.longitude),
+    () => { alert('GPS refusé ou indisponible.'); stopGPS(); },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+  );
+  render();
+}
+
+function stopGPS() {
+  if (gpsWatchId !== null) navigator.geolocation.clearWatch(gpsWatchId);
+  gpsWatchId = null;
+  gpsMatchId = null;
+  lastSentPos = null;
+  render();
+}
+
+// Carte Leaflet (vue live)
+let leafletMap = null;
+const gpsMarkers = {};
+
+function initMap() {
+  if (!state.readonly || leafletMap) return;
+  leafletMap = L.map('map', { zoomControl: true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  }).addTo(leafletMap);
+}
+
+async function updateMap() {
+  if (!state.readonly || !leafletMap) return;
+  try {
+    const res = await fetch(`${BASE_URL}/api/positions`);
+    if (!res.ok) return;
+    const positions = await res.json();
+
+    const now = Date.now();
+    const bounds = [];
+
+    Object.entries(positions).forEach(([matchId, pos]) => {
+      if (now - new Date(pos.updatedAt).getTime() > 10 * 60 * 1000) return;
+      const match = state.data.matches.find((m) => m.id === matchId);
+      const label = match ? (match.referencePlayer || matchId) : matchId;
+
+      if (gpsMarkers[matchId]) {
+        gpsMarkers[matchId].setLatLng([pos.lat, pos.lng]);
+      } else {
+        gpsMarkers[matchId] = L.marker([pos.lat, pos.lng])
+          .addTo(leafletMap)
+          .bindPopup(label)
+          .openPopup();
+      }
+      bounds.push([pos.lat, pos.lng]);
+    });
+
+    Object.keys(gpsMarkers).forEach((matchId) => {
+      if (!positions[matchId]) {
+        leafletMap.removeLayer(gpsMarkers[matchId]);
+        delete gpsMarkers[matchId];
+      }
+    });
+
+    const mapSection = document.getElementById('mapSection');
+    const gpsCount = document.getElementById('gpsCount');
+    if (bounds.length > 0) {
+      mapSection.style.display = 'block';
+      leafletMap.invalidateSize();
+      leafletMap.fitBounds(bounds, { maxZoom: 17, padding: [40, 40] });
+      gpsCount.textContent = `${bounds.length} actif${bounds.length > 1 ? 's' : ''}`;
+    } else {
+      mapSection.style.display = 'none';
+    }
+  } catch (_) {}
+}
+
 let saveInFlight = false;
 let savePending = false;
 let saveDebounceTimer = null;
@@ -255,6 +357,9 @@ function renderMatch(match) {
         <button class="toggle-expand" data-action="toggle-expand" data-match="${match.id}">
           ${isExpanded ? '▲ Masquer' : '▼ Historique & réglages'}
         </button>
+        <button class="gps-btn${gpsMatchId === match.id ? ' active' : ''}" data-action="toggle-gps" data-match="${match.id}">
+          ${gpsMatchId === match.id ? 'GPS actif · Désactiver' : 'Activer GPS pour ce match'}
+        </button>
       `}
       ${expandedSection}
     </article>
@@ -304,6 +409,11 @@ matchesEl.addEventListener('click', (event) => {
 
   if (action === 'set-hole') setHole(matchId, hole, target.dataset.result);
   if (action === 'edit-hole') openEditModal(matchId, hole);
+  if (action === 'toggle-gps') {
+    if (gpsMatchId === matchId) stopGPS();
+    else startGPS(matchId);
+    return;
+  }
   if (action === 'toggle-expand') {
     if (state.expanded.has(matchId)) state.expanded.delete(matchId);
     else state.expanded.add(matchId);
@@ -360,10 +470,13 @@ async function init() {
   try {
     await fetchData();
     render();
+    initMap();
+    await updateMap();
     setInterval(async () => {
       try {
         await fetchData();
         render();
+        await updateMap();
       } catch (_) {}
     }, state.readonly ? 2000 : 8000);
   } catch (error) {
