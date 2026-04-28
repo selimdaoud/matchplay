@@ -82,6 +82,7 @@ async function fetchData() {
 let gpsWatchId = null;
 let gpsMatchId = null;
 let lastSentPos = null;
+let gpsStatus = null; // 'acquiring' | 'active' | 'error'
 
 function distanceM(lat1, lng1, lat2, lng2) {
   const R = 6371000;
@@ -106,10 +107,25 @@ function startGPS(matchId) {
   if (!navigator.geolocation) { alert('GPS non disponible sur cet appareil.'); return; }
   stopGPS();
   gpsMatchId = matchId;
+  gpsStatus = 'acquiring';
   gpsWatchId = navigator.geolocation.watchPosition(
-    (pos) => sendPosition(pos.coords.latitude, pos.coords.longitude),
-    () => { alert('GPS refusé ou indisponible.'); stopGPS(); },
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+    (pos) => {
+      gpsStatus = 'active';
+      sendPosition(pos.coords.latitude, pos.coords.longitude);
+      render();
+    },
+    (err) => {
+      if (err.code === 1) {
+        // PERMISSION_DENIED — arrêter définitivement
+        stopGPS();
+        alert('Permission GPS refusée dans les réglages du navigateur.');
+      } else {
+        // TIMEOUT ou POSITION_UNAVAILABLE — signal faible, on continue d'attendre
+        gpsStatus = 'error';
+        render();
+      }
+    },
+    { enableHighAccuracy: true, timeout: Infinity, maximumAge: 30000 }
   );
   render();
 }
@@ -119,6 +135,7 @@ function stopGPS() {
   gpsWatchId = null;
   gpsMatchId = null;
   lastSentPos = null;
+  gpsStatus = null;
   render();
 }
 
@@ -358,7 +375,9 @@ function renderMatch(match) {
           ${isExpanded ? '▲ Masquer' : '▼ Historique & réglages'}
         </button>
         <button class="gps-btn${gpsMatchId === match.id ? ' active' : ''}" data-action="toggle-gps" data-match="${match.id}">
-          ${gpsMatchId === match.id ? 'GPS actif · Désactiver' : 'Activer GPS pour ce match'}
+          ${gpsMatchId === match.id
+            ? (gpsStatus === 'active' ? 'GPS actif · Désactiver' : gpsStatus === 'error' ? 'GPS : signal faible · Désactiver' : 'GPS : acquisition… · Désactiver')
+            : 'Activer GPS pour ce match'}
         </button>
       `}
       ${expandedSection}
