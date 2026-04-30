@@ -4,8 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Matchplay Live</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <style>
+<style>
     :root {
       --bg: #f6f7f5;
       --card: #ffffff;
@@ -323,38 +322,7 @@
       margin-top: 4px;
     }
 
-    .gps-btn {
-      width: 100%;
-      padding: 10px;
-      border-radius: 12px;
-      border: 1px solid var(--line);
-      background: none;
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 650;
-      margin-top: 8px;
-    }
-
-    .gps-btn.active {
-      background: var(--accent-soft);
-      border-color: rgba(31, 111, 74, .24);
-      color: var(--accent);
-    }
-
-    .map-section {
-      margin-top: 28px;
-      display: none;
-    }
-
-    #map {
-      height: 340px;
-      border-radius: 18px;
-      overflow: hidden;
-      border: 1px solid var(--line);
-      margin-top: 10px;
-    }
-
-    .expanded-section {
+.expanded-section {
       margin-top: 16px;
       border-top: 1px solid var(--line);
       padding-top: 16px;
@@ -528,13 +496,6 @@
 
     <section class="matches" id="matches"></section>
 
-    <div class="map-section" id="mapSection">
-      <div class="section-title">
-        <span>Positions GPS</span>
-        <span id="gpsCount"></span>
-      </div>
-      <div id="map"></div>
-    </div>
   </main>
 
   <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
@@ -549,7 +510,6 @@
     </div>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
