@@ -1,24 +1,12 @@
 const express = require('express');
-const fs = require('fs/promises');
 const path = require('path');
+const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_FILE = path.join(__dirname, 'scores.json');
 
 app.use(express.json({ limit: '200kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
-
-async function readData() {
-  const raw = await fs.readFile(DATA_FILE, 'utf8');
-  return JSON.parse(raw);
-}
-
-async function writeData(data) {
-  data.updatedAt = new Date().toISOString();
-  await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
-  return data;
-}
 
 function validateData(payload) {
   if (!payload || !Array.isArray(payload.matches)) {
@@ -40,32 +28,28 @@ function validateData(payload) {
   return payload;
 }
 
-app.get('/api', async (_req, res) => {
+app.get('/api', (_req, res) => {
   try {
-    res.json(await readData());
+    res.json(db.readState());
   } catch (error) {
+    console.error('[GET /api]', error);
     res.status(500).json({ error: 'Unable to read scores.' });
   }
 });
 
-app.post('/api', async (req, res) => {
+app.post('/api', (req, res) => {
   try {
     const data = validateData(req.body);
-    res.json(await writeData(data));
+    res.json(db.writeState(data.matches));
   } catch (error) {
     console.error('[POST /api]', error);
     res.status(400).json({ error: error.message || 'Unable to save scores.' });
   }
 });
 
-app.get('/live', (_req, res) => {
+app.get(['/live', '/'], (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
-
-app.get('/', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 
 app.listen(PORT, () => {
   console.log(`Golf matchplay live app running on http://localhost:${PORT}`);
