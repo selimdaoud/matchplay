@@ -29,6 +29,11 @@ function escapeHtml(value = '') {
     .replaceAll("'", '&#039;');
 }
 
+function formatTime(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
 function scoreText(value) {
   if (value === 0) return 'AS';
   return value > 0 ? `${value} UP` : `${Math.abs(value)} DOWN`;
@@ -184,7 +189,7 @@ function renderHistory(match, holes) {
         </tr>
         ${holes.map((h) => `
           <tr>
-            <td>${h.hole}</td>
+            <td>${h.hole}${h.playedAt ? `<br><span class="ts">${formatTime(h.playedAt)}</span>` : ''}</td>
             <td class="result-cell ${editable}" data-action="edit-hole" data-match="${match.id}" data-hole="${h.hole}">
               <span class="mark ${RESULT[h.result].className}">${RESULT[h.result].short}</span>
             </td>

@@ -42,7 +42,7 @@ const stmts = {
   getTournament:       db.prepare('SELECT * FROM tournaments WHERE id = ?'),
   updateTournamentTs:  db.prepare('UPDATE tournaments SET updatedAt = ? WHERE id = ?'),
   getMatches:          db.prepare('SELECT id, title, referencePlayer, opponent FROM matches WHERE tournamentId = ? ORDER BY createdAt'),
-  getHoles:            db.prepare('SELECT hole, result FROM holes WHERE matchId = ? ORDER BY hole'),
+  getHoles:            db.prepare('SELECT hole, result, playedAt FROM holes WHERE matchId = ? ORDER BY hole'),
   upsertMatch:         db.prepare(`
     INSERT INTO matches (id, tournamentId, title, referencePlayer, opponent, createdAt)
     VALUES (?, ?, ?, ?, ?, ?)
