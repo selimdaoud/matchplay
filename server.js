@@ -6,7 +6,7 @@ const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const BASE_PATH = (process.env.BASE_PATH || '').replace(/\/$/, '');
+const BASE_PATH = (process.env.BASE_PATH || '/matchplay').replace(/\/$/, '');
 
 app.use(express.json({ limit: '200kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
