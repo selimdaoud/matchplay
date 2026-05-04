@@ -244,14 +244,16 @@
       setTimeout(() => { btn.textContent = 'Copier le lien'; }, 2000);
     });
 
-    document.getElementById('sessionCode').addEventListener('change', loadMatchList);
+    let codeDebounce = null;
     document.getElementById('sessionCode').addEventListener('input', () => {
-      if (!document.getElementById('sessionCode').value.trim()) {
+      clearTimeout(codeDebounce);
+      const code = document.getElementById('sessionCode').value.trim();
+      if (!code) {
         document.getElementById('matchAdminList').style.display = 'none';
+        return;
       }
+      codeDebounce = setTimeout(loadMatchList, 600);
     });
-
-    loadMatchList();
   </script>
 </body>
 </html>
