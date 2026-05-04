@@ -3,8 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>
+    var _base = document.createElement('base');
+    _base.href = window.location.pathname.replace(/\/live(\/[^/]*)?\/?$/, '/');
+    document.head.appendChild(_base);
+    window.APP_BASE = _base.href.replace(/\/$/, '');
+  </script>
   <title>Live — Matchplay Live</title>
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main class="page">
@@ -18,7 +24,7 @@
     <section id="content"></section>
   </main>
 
-  <script src="/common.js"></script>
-  <script src="/live.js"></script>
+  <script src="common.js"></script>
+  <script src="live.js"></script>
 </body>
 </html>

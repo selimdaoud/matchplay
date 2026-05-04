@@ -53,7 +53,7 @@ app.post('/new', async (req, res) => {
 
 app.get('/match/:token', (req, res) => {
   const match = db.getMatchByToken(req.params.token);
-  if (!match) return res.status(404).sendFile(path.join(__dirname, 'public', '404.html'));
+  if (!match) return res.status(404).send('<h1>Match introuvable</h1>');
   res.sendFile(path.join(__dirname, 'public', 'recorder.html'));
 });
 
@@ -134,7 +134,7 @@ app.get('/api/match/:token/audit', (req, res) => {
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 
-app.get('/', (_req, res) => res.redirect('/live'));
+app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'live.html')));
 
 app.listen(PORT, () => {
   console.log(`Golf matchplay live app running on http://localhost:${PORT}`);

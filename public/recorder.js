@@ -1,5 +1,7 @@
-const token = window.location.pathname.split('/')[2];
-const BASE = `/api/match/${token}`;
+const token = window.location.pathname.slice(
+  window.location.pathname.indexOf('/match/') + '/match/'.length
+).replace(/\/$/, '');
+const BASE = `${APP_BASE}/api/match/${token}`;
 
 const state = {
   match: null,
@@ -194,7 +196,7 @@ $('#modalBackdrop').addEventListener('click', (event) => {
 });
 
 $('#copyLiveLink').addEventListener('click', async () => {
-  const url = `${window.location.origin}/live`;
+  const url = `${window.location.origin}${APP_BASE}/live`;
   await navigator.clipboard.writeText(url);
   const btn = $('#copyLiveLink');
   btn.textContent = 'Copié !';
@@ -202,7 +204,7 @@ $('#copyLiveLink').addEventListener('click', async () => {
 });
 
 $('#openAudit').addEventListener('click', () => {
-  window.open(`/match/${token}/audit`, '_blank');
+  window.open(`${APP_BASE}/match/${token}/audit`, '_blank');
 });
 
 async function init() {

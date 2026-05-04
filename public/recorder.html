@@ -3,8 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>
+    var _base = document.createElement('base');
+    _base.href = window.location.pathname.replace(/\/match\/[^/]+\/?$/, '/');
+    document.head.appendChild(_base);
+    window.APP_BASE = _base.href.replace(/\/$/, '');
+  </script>
   <title>Marqueur — Matchplay Live</title>
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main class="page">
@@ -35,7 +41,7 @@
     </div>
   </div>
 
-  <script src="/common.js"></script>
-  <script src="/recorder.js"></script>
+  <script src="common.js"></script>
+  <script src="recorder.js"></script>
 </body>
 </html>

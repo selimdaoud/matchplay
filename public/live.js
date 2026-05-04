@@ -6,16 +6,37 @@ const state = {
 const $ = (sel) => document.querySelector(sel);
 
 function getMatchIdFromUrl() {
-  const parts = window.location.pathname.split('/');
-  // /live/:matchId → parts[2]
-  return parts[2] || null;
+  const idx = window.location.pathname.indexOf('/live/');
+  if (idx < 0) return null;
+  return window.location.pathname.slice(idx + '/live/'.length).replace(/\/$/, '') || null;
 }
 
 async function fetchLive() {
-  const res = await fetch('/api/live', { cache: 'no-store' });
+  const res = await fetch(`${APP_BASE}/api/live`, { cache: 'no-store' });
   if (!res.ok) throw new Error('Impossible de charger le live.');
   const data = await res.json();
   state.matches = data.matches || [];
+}
+
+function renderHistory(match, holes) {
+  if (!holes.length) return '<div class="empty">Aucun trou saisi.</div>';
+  const ref = escapeHtml(match.referencePlayer || 'Référence');
+  return `
+    <div class="history-wrap">
+      <table>
+        <tr><th>Trou</th><th>Résultat</th><th>${ref}</th></tr>
+        ${holes.map((h) => `
+          <tr>
+            <td>${h.hole}${h.recordedAt ? `<br><span class="ts">${formatTime(h.recordedAt)}</span>` : ''}</td>
+            <td class="result-cell">
+              <span class="mark ${RESULT[h.result].className}">${RESULT[h.result].short}</span>
+            </td>
+            <td>${h.scoreText}</td>
+          </tr>
+        `).join('')}
+      </table>
+    </div>
+  `;
 }
 
 function renderMatchCard(match, clickable) {
@@ -41,27 +62,6 @@ function renderMatchCard(match, clickable) {
   `;
 }
 
-function renderHistory(match, holes) {
-  if (!holes.length) return '<div class="empty">Aucun trou saisi.</div>';
-  const ref = escapeHtml(match.referencePlayer || 'Référence');
-  return `
-    <div class="history-wrap">
-      <table>
-        <tr><th>Trou</th><th>Résultat</th><th>${ref}</th></tr>
-        ${holes.map((h) => `
-          <tr>
-            <td>${h.hole}${h.recordedAt ? `<br><span class="ts">${formatTime(h.recordedAt)}</span>` : ''}</td>
-            <td class="result-cell">
-              <span class="mark ${RESULT[h.result].className}">${RESULT[h.result].short}</span>
-            </td>
-            <td>${h.scoreText}</td>
-          </tr>
-        `).join('')}
-      </table>
-    </div>
-  `;
-}
-
 function renderList() {
   $('#subtitle').textContent = `${state.matches.length} match${state.matches.length > 1 ? 's' : ''} en cours`;
   if (!state.matches.length) {
@@ -84,13 +84,13 @@ function renderDetail() {
 
 function showList() {
   state.detailId = null;
-  history.pushState({}, '', '/live');
+  history.pushState({}, '', `${APP_BASE}/live`);
   renderList();
 }
 
 function showDetail(matchId) {
   state.detailId = matchId;
-  history.pushState({}, '', `/live/${matchId}`);
+  history.pushState({}, '', `${APP_BASE}/live/${matchId}`);
   renderDetail();
 }
 

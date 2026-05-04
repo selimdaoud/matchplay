@@ -3,6 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>
+    var _base = document.createElement('base');
+    _base.href = window.location.pathname.replace(/\/new\/?$/, '/');
+    document.head.appendChild(_base);
+    window.APP_BASE = _base.href.replace(/\/$/, '');
+  </script>
   <title>Nouveau match — Matchplay Live</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -13,7 +19,7 @@
         <h1>Nouveau match</h1>
         <div class="subtitle">Créez un match et partagez le lien au marqueur.</div>
       </div>
-      <a class="pill" href="/live" style="text-decoration:none">← Live</a>
+      <a class="pill" id="liveLink" style="text-decoration:none">← Live</a>
     </header>
 
     <div class="card form-card" id="formSection">
@@ -51,7 +57,7 @@
         <button class="btn" id="copyLink">Copier le lien</button>
       </div>
       <div style="margin-top:16px;text-align:center">
-        <a href="/new" style="color:var(--muted);font-size:14px">+ Créer un autre match</a>
+        <a id="anotherMatch" style="color:var(--muted);font-size:14px;cursor:pointer">+ Créer un autre match</a>
       </div>
     </div>
   </main>
@@ -59,17 +65,12 @@
   <script>
     let recorderUrl = '';
 
-    async function checkSessionCodeRequired() {
-      const res = await fetch('/api/live');
-      // We use a separate lightweight endpoint; for now just show the field
-      // Server will reject if SESSION_CODE is set and code is wrong.
-      // Show code field always — it's harmless if SESSION_CODE is not set.
-      document.getElementById('codeGroup').style.display = 'block';
-    }
+    // Set nav links
+    document.getElementById('liveLink').href = APP_BASE + '/live';
+    document.getElementById('anotherMatch').href = APP_BASE + '/new';
 
-    checkSessionCodeRequired().catch(() => {
-      document.getElementById('codeGroup').style.display = 'block';
-    });
+    // Show session code field — server rejects if code is wrong
+    document.getElementById('codeGroup').style.display = 'block';
 
     document.getElementById('submitBtn').addEventListener('click', async () => {
       const btn = document.getElementById('submitBtn');
@@ -86,7 +87,7 @@
       };
 
       try {
-        const res = await fetch('/new', {
+        const res = await fetch(APP_BASE + '/new', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
