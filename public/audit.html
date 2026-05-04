@@ -19,12 +19,16 @@
     .audit-hole { font-weight: 850; font-size: 15px; min-width: 28px; }
     .audit-detail { flex: 1; font-size: 14px; }
     .audit-time { font-size: 12px; color: var(--muted); margin-top: 2px; }
-    .audit-tag {
-      font-size: 11px; font-weight: 750; padding: 2px 8px;
-      border-radius: 999px; align-self: center;
-    }
+    .audit-tag { font-size: 11px; font-weight: 750; padding: 2px 8px; border-radius: 999px; align-self: center; }
     .audit-tag.active { background: var(--accent-soft); color: var(--accent); }
     .audit-tag.corrected { background: var(--neutral); color: var(--muted); }
+
+    .hole-group { margin-bottom: 12px; }
+    .hole-group-header { font-weight: 850; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 8px 0 4px; border-bottom: 2px solid var(--line); margin-bottom: 4px; }
+
+    .toggle-bar { display: flex; gap: 6px; margin-bottom: 16px; }
+    .toggle-btn { padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 13px; font-weight: 650; cursor: pointer; color: var(--muted); }
+    .toggle-btn.active { background: var(--text); color: white; border-color: var(--text); }
   </style>
 </head>
 <body>
@@ -36,12 +40,79 @@
       </div>
       <a class="pill" id="backLink" style="text-decoration:none">← Marqueur</a>
     </header>
+
+    <div class="toggle-bar">
+      <button class="toggle-btn active" id="btnChrono">Chronologique</button>
+      <button class="toggle-btn" id="btnHole">Par trou</button>
+    </div>
+
     <div class="card" id="content">Chargement…</div>
   </main>
 
   <script src="common.js"></script>
   <script>
     document.getElementById('backLink').href = `${APP_BASE}/match/${MATCH_TOKEN}`;
+
+    let allEvents = [];
+    let viewMode = 'chrono'; // 'chrono' | 'hole'
+
+    function renderRow(e) {
+      const isSuperseded = e.supersededBy !== null;
+      const label = RESULT[e.result] ? RESULT[e.result].label : e.result;
+      const className = RESULT[e.result] ? RESULT[e.result].className : '';
+      return `
+        <div class="audit-row${isSuperseded ? ' superseded' : ''}">
+          <div class="audit-hole">T${e.hole}</div>
+          <div class="audit-detail">
+            <span class="mark ${className}" style="font-size:12px">${RESULT[e.result]?.short || '?'}</span>
+            &nbsp;${escapeHtml(label)}
+            <div class="audit-time">${formatTime(e.recordedAt)} · ${new Date(e.recordedAt).toLocaleDateString('fr-FR')}</div>
+          </div>
+          <span class="audit-tag ${isSuperseded ? 'corrected' : 'active'}">${isSuperseded ? 'Corrigé' : 'Actif'}</span>
+        </div>
+      `;
+    }
+
+    function renderChrono() {
+      return allEvents.map(renderRow).join('');
+    }
+
+    function renderByHole() {
+      const groups = new Map();
+      for (const e of allEvents) {
+        if (!groups.has(e.hole)) groups.set(e.hole, []);
+        groups.get(e.hole).push(e);
+      }
+      const sorted = [...groups.entries()].sort((a, b) => a[0] - b[0]);
+      return sorted.map(([hole, events]) => `
+        <div class="hole-group">
+          <div class="hole-group-header">Trou ${hole}</div>
+          ${events.map(renderRow).join('')}
+        </div>
+      `).join('');
+    }
+
+    function renderContent() {
+      if (!allEvents.length) {
+        document.getElementById('content').innerHTML = '<div class="empty">Aucune saisie enregistrée.</div>';
+        return;
+      }
+      document.getElementById('content').innerHTML = viewMode === 'chrono' ? renderChrono() : renderByHole();
+    }
+
+    document.getElementById('btnChrono').addEventListener('click', () => {
+      viewMode = 'chrono';
+      document.getElementById('btnChrono').classList.add('active');
+      document.getElementById('btnHole').classList.remove('active');
+      renderContent();
+    });
+
+    document.getElementById('btnHole').addEventListener('click', () => {
+      viewMode = 'hole';
+      document.getElementById('btnHole').classList.add('active');
+      document.getElementById('btnChrono').classList.remove('active');
+      renderContent();
+    });
 
     async function load() {
       const [matchRes, auditRes] = await Promise.all([
@@ -57,32 +128,10 @@
       const match = await matchRes.json();
       const { events } = await auditRes.json();
 
+      allEvents = events;
       document.title = `Audit · ${match.title || 'Match'} — Matchplay Live`;
       document.getElementById('subtitle').textContent = `${match.referencePlayer || '…'} vs ${match.opponent || '…'} · ${events.length} entrée${events.length > 1 ? 's' : ''}`;
-
-      if (!events.length) {
-        document.getElementById('content').innerHTML = '<div class="empty">Aucune saisie enregistrée.</div>';
-        return;
-      }
-
-      const supersededIds = new Set(events.filter(e => e.supersededBy).map(e => e.id));
-
-      document.getElementById('content').innerHTML = events.map((e) => {
-        const isSuperseded = e.supersededBy !== null;
-        const label = RESULT[e.result] ? RESULT[e.result].label : e.result;
-        const className = RESULT[e.result] ? RESULT[e.result].className : '';
-        return `
-          <div class="audit-row${isSuperseded ? ' superseded' : ''}">
-            <div class="audit-hole">T${e.hole}</div>
-            <div class="audit-detail">
-              <span class="mark ${className}" style="font-size:12px">${RESULT[e.result]?.short || '?'}</span>
-              &nbsp;${escapeHtml(label)}
-              <div class="audit-time">${formatTime(e.recordedAt)} · ${new Date(e.recordedAt).toLocaleDateString('fr-FR')}</div>
-            </div>
-            <span class="audit-tag ${isSuperseded ? 'corrected' : 'active'}">${isSuperseded ? 'Corrigé' : 'Actif'}</span>
-          </div>
-        `;
-      }).join('');
+      renderContent();
     }
 
     load().catch(() => {
