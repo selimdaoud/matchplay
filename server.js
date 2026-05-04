@@ -104,8 +104,9 @@ app.put('/api/match/:token/holes/:hole', (req, res) => {
 
 // ── Session match list (admin) ────────────────────────────────────────────────
 
-app.get('/api/session/matches', (_req, res) => {
+app.get('/api/session/matches', (req, res) => {
   try {
+    if (!checkSessionCode(req.query.code)) return res.status(401).json({ error: 'Code de session incorrect.' });
     const session = db.getActiveSession();
     res.json(db.getAllMatchesForSession(session.id));
   } catch (error) {

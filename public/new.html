@@ -119,9 +119,17 @@
     // ── Match list ─────────────────────────────────────────────────────────────
 
     async function loadMatchList() {
+      const code = document.getElementById('sessionCode').value.trim();
+      if (!code) {
+        document.getElementById('matchAdminList').style.display = 'none';
+        return;
+      }
       try {
-        const res = await fetch(APP_BASE + '/api/session/matches');
-        if (!res.ok) return;
+        const res = await fetch(`${APP_BASE}/api/session/matches?code=${encodeURIComponent(code)}`);
+        if (!res.ok) {
+          document.getElementById('matchAdminList').style.display = 'none';
+          return;
+        }
         matchList = await res.json();
         renderMatchList();
       } catch (_) {}
@@ -215,6 +223,7 @@
         document.getElementById('qrImage').src = data.qrDataUrl;
         document.getElementById('formSection').style.display = 'none';
         document.getElementById('successSection').style.display = 'block';
+        loadMatchList();
       } catch (e) {
         errEl.textContent = 'Erreur réseau. Réessayez.';
         errEl.style.display = 'block';
@@ -233,6 +242,13 @@
       const btn = document.getElementById('copyLink');
       btn.textContent = 'Copié !';
       setTimeout(() => { btn.textContent = 'Copier le lien'; }, 2000);
+    });
+
+    document.getElementById('sessionCode').addEventListener('change', loadMatchList);
+    document.getElementById('sessionCode').addEventListener('input', () => {
+      if (!document.getElementById('sessionCode').value.trim()) {
+        document.getElementById('matchAdminList').style.display = 'none';
+      }
     });
 
     loadMatchList();
