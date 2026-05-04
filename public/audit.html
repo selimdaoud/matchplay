@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>
+    var _base = document.createElement('base');
+    _base.href = window.location.pathname.replace(/\/match\/[^/]+\/audit\/?$/, '/');
+    document.head.appendChild(_base);
+    window.APP_BASE = window.location.pathname.replace(/\/match\/[^/]+\/audit\/?$/, '').replace(/\/$/, '');
+    window.MATCH_TOKEN = window.location.pathname.split('/').slice(-2)[0];
+  </script>
+  <title>Audit — Matchplay Live</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .audit-row { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); align-items: flex-start; }
+    .audit-row:last-child { border-bottom: none; }
+    .audit-row.superseded { opacity: 0.4; }
+    .audit-hole { font-weight: 850; font-size: 15px; min-width: 28px; }
+    .audit-detail { flex: 1; font-size: 14px; }
+    .audit-time { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .audit-tag {
+      font-size: 11px; font-weight: 750; padding: 2px 8px;
+      border-radius: 999px; align-self: center;
+    }
+    .audit-tag.active { background: var(--accent-soft); color: var(--accent); }
+    .audit-tag.corrected { background: var(--neutral); color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div>
+        <h1>Audit</h1>
+        <div class="subtitle" id="subtitle">Chargement…</div>
+      </div>
+      <a class="pill" id="backLink" style="text-decoration:none">← Marqueur</a>
+    </header>
+    <div class="card" id="content">Chargement…</div>
+  </main>
+
+  <script src="common.js"></script>
+  <script>
+    document.getElementById('backLink').href = `${APP_BASE}/match/${MATCH_TOKEN}`;
+
+    async function load() {
+      const [matchRes, auditRes] = await Promise.all([
+        fetch(`${APP_BASE}/api/match/${MATCH_TOKEN}`),
+        fetch(`${APP_BASE}/api/match/${MATCH_TOKEN}/audit`),
+      ]);
+
+      if (!matchRes.ok || !auditRes.ok) {
+        document.getElementById('content').innerHTML = '<p style="color:var(--danger)">Impossible de charger l\'audit.</p>';
+        return;
+      }
+
+      const match = await matchRes.json();
+      const { events } = await auditRes.json();
+
+      document.title = `Audit · ${match.title || 'Match'} — Matchplay Live`;
+      document.getElementById('subtitle').textContent = `${match.referencePlayer || '…'} vs ${match.opponent || '…'} · ${events.length} entrée${events.length > 1 ? 's' : ''}`;
+
+      if (!events.length) {
+        document.getElementById('content').innerHTML = '<div class="empty">Aucune saisie enregistrée.</div>';
+        return;
+      }
+
+      const supersededIds = new Set(events.filter(e => e.supersededBy).map(e => e.id));
+
+      document.getElementById('content').innerHTML = events.map((e) => {
+        const isSuperseded = e.supersededBy !== null;
+        const label = RESULT[e.result] ? RESULT[e.result].label : e.result;
+        const className = RESULT[e.result] ? RESULT[e.result].className : '';
+        return `
+          <div class="audit-row${isSuperseded ? ' superseded' : ''}">
+            <div class="audit-hole">T${e.hole}</div>
+            <div class="audit-detail">
+              <span class="mark ${className}" style="font-size:12px">${RESULT[e.result]?.short || '?'}</span>
+              &nbsp;${escapeHtml(label)}
+              <div class="audit-time">${formatTime(e.recordedAt)} · ${new Date(e.recordedAt).toLocaleDateString('fr-FR')}</div>
+            </div>
+            <span class="audit-tag ${isSuperseded ? 'corrected' : 'active'}">${isSuperseded ? 'Corrigé' : 'Actif'}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    load().catch(() => {
+      document.getElementById('content').innerHTML = '<p style="color:var(--danger)">Erreur réseau.</p>';
+    });
+  </script>
+</body>
+</html>

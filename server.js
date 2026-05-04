@@ -161,6 +161,12 @@ app.get('/api/live', (_req, res) => {
 
 // ── Audit ─────────────────────────────────────────────────────────────────────
 
+app.get('/match/:token/audit', (req, res) => {
+  const match = db.getMatchByToken(req.params.token);
+  if (!match) return res.status(404).send('<h1>Match introuvable</h1>');
+  res.sendFile(path.join(__dirname, 'public', 'audit.html'));
+});
+
 app.get('/api/match/:token/audit', (req, res) => {
   try {
     const match = db.getMatchByToken(req.params.token);
