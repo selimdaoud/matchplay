@@ -1,0 +1,382 @@
+MATCHPLAY LIVE — ROADMAP & IMPLEMENTATION BRIEF
+================================================
+Last updated: 2026-05-04
+
+This file is written as a self-contained brief for a future implementer (human
+or AI). It describes the current codebase state, known bugs, and the full
+multi-recorder evolution spec with enough detail to implement without needing
+to re-derive context from conversation history.
+
+
+════════════════════════════════════════
+0. CURRENT CODEBASE STATE (as of 2026-05-04)
+════════════════════════════════════════
+
+STACK
+  Runtime : Node.js >=18, CommonJS (require/module.exports throughout)
+  Server  : Express 4.x  (server.js)
+  DB      : SQLite via better-sqlite3 (synchronous API — no async/await in DB calls)
+  Frontend: Vanilla JS + inline CSS, single HTML page (public/index.html + public/app.js)
+  Hosting : Single process, port 3000 (env PORT overrides)
+
+FILE STRUCTURE
+  server.js             Express app — routes + validateData()
+  db.js                 SQLite module — schema, prepared statements, readState/writeState
+  public/
+    index.html          Single page app (all CSS inline)
+    app.js              Frontend logic
+  scores.db             SQLite database (gitignored)
+  package.json          Dependencies: express, better-sqlite3
+  .gitignore            Ignores: node_modules/, scores.db, scores.db-wal, scores.db-shm
+
+CURRENT DB SCHEMA (Phase 1 — to be replaced, see B1 for target schema)
+  scores.db exists but contains no meaningful data — delete it before deploying.
+
+CURRENT API
+  GET  /api        → db.readState() → { matches: [{id, title, referencePlayer, opponent, holes:[{hole,result,playedAt}]}], updatedAt }
+  POST /api        → validateData(body) → db.writeState(matches) → same shape as GET
+  GET  /           → serves public/index.html
+  GET  /live       → serves public/index.html (same file, frontend detects read-only via URL)
+
+CURRENT FRONTEND — KNOWN ISSUES TO FIX DURING REFACTOR
+  1. saveData() orphans Promises on rapid calls (A1 below)
+  2. renderChoiceButtons() is dead code (A2 below)
+  3. matchStatus() never detects finished match (A3 below)
+  4. Hardcoded "Réinitialiser les deux matchs ?" (A4 below)
+  5. Full-state POST is replaced by per-hole PUT in the new architecture
+
+
+════════════════════════════════════════
+A. QUICK WINS — BUG FIXES (independent of architecture evolution)
+════════════════════════════════════════
+
+A1. saveData() silently orphans Promises — move error handling into executeSave()
+    and make all callers fire-and-forget. Naturally resolved by per-hole PUT (B4).
+
+A2. renderChoiceButtons() dead code — delete lines 153-175 in public/app.js.
+
+A3. matchStatus() never detects finished match
+    File: public/app.js, lines 60-78
+    Problem: finished is always false. In match play, a match ends when the lead
+    exceeds remaining holes (e.g. 4 UP with 3 to play = match over, "4&3").
+    Also: a player 2 UP after hole 18 wins "2 UP" (full 18 holes played).
+    Fix logic:
+      holesRemaining = 18 - holesPlayed
+      if (Math.abs(last.cumulative) > holesRemaining) → finished = true
+      finishLabel: e.g. "4&3" means won 4 UP with 3 remaining
+      After hole 18: if cumulative !== 0 → finished = true, display "X UP"
+      If cumulative === 0 after hole 18 → display "AS, play-off"
+    When finished=true: hide the big entry buttons in renderMatch().
+    Carefull with this use case: It can happen that a finished=true by mistake because a correction to the score needs to take place which will change the "finished" status. take this use case into account
+
+A4. Hardcoded "Réinitialiser les deux matchs ?"
+    File: public/app.js, line 355
+    Fix: `Réinitialiser les ${state.data.matches.length} matchs ?`
+
+A5. Stray file "0" in project root — delete it.
+
+
+════════════════════════════════════════
+B. MULTI-RECORDER ARCHITECTURE
+════════════════════════════════════════
+
+DESIGN PRINCIPLES (decided, not up for debate)
+  - Each match has a 6-char random hex token (recorder access key).
+  - Recording URL /match/:token is private — recorder bookmarks it.
+  - Live feed URL /live is public — shows ALL ongoing matches, no token.
+  - Token NEVER appears in the live feed UI or API response.
+  - Holes table is append-only: corrections create new rows, nothing is ever
+    physically deleted or overwritten. This makes the app a system of record.
+  - A "correction" = supersede old row + insert new row (in one transaction).
+  - "Delete hole" capability is REMOVED from the recorder UI. Recorders can
+    only enter or correct a result, never erase one.
+  - A session code (env var SESSION_CODE) gates match creation.
+    Organiser announces it on the day. No admin page, no accounts.
+  - If SESSION_CODE env var is not set → match creation is open (suitable for
+    private/trusted deployments where the app URL itself is the credential).
+
+URL MAP
+  /new                   Match creation form (served by server, HTML page)
+  /match/:token          Recorder view — write access, scoped to one match
+  /live                  Public live feed — read-only, all matches, match selector
+  /live/:matchId         Read-only detail view for one match (drill-down from /live)
+  /match/:token/audit    Read-only audit/replay view for a match (full history)
+
+─────────────────────────────────────────
+B1. TARGET DB SCHEMA (fresh — delete scores.db before deploying)
+─────────────────────────────────────────
+
+  CREATE TABLE IF NOT EXISTS sessions (
+    id        TEXT PRIMARY KEY,
+    name      TEXT NOT NULL,
+    date      TEXT NOT NULL,   -- ISO 8601 date
+    code      TEXT,            -- raw SESSION_CODE value used at creation (NULL = open)
+    updatedAt TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS matches (
+    id              TEXT PRIMARY KEY,
+    sessionId       TEXT NOT NULL REFERENCES sessions(id),
+    token           TEXT NOT NULL UNIQUE,  -- 6-char hex, recorder access key
+    title           TEXT NOT NULL DEFAULT '',
+    referencePlayer TEXT NOT NULL DEFAULT '',
+    opponent        TEXT NOT NULL DEFAULT '',
+    createdAt       TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS holes (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    matchId      TEXT NOT NULL REFERENCES matches(id),
+    hole         INTEGER NOT NULL,
+    result       TEXT NOT NULL CHECK(result IN ('win','halve','loss')),
+    recordedAt   TEXT NOT NULL,
+    supersededBy INTEGER REFERENCES holes(id)
+    -- NO UNIQUE constraint: multiple rows per (matchId, hole) are allowed
+  );
+
+KEY QUERIES
+  Current state (one match):
+    SELECT hole, result, recordedAt FROM holes
+    WHERE matchId = ? AND supersededBy IS NULL
+    ORDER BY hole
+
+  Audit log (one match):
+    SELECT id, hole, result, recordedAt, supersededBy FROM holes
+    WHERE matchId = ? ORDER BY recordedAt
+
+  All active matches + current holes (for live feed):
+    SELECT m.id, m.title, m.referencePlayer, m.opponent,
+           h.hole, h.result, h.recordedAt
+    FROM matches m
+    LEFT JOIN holes h ON h.matchId = m.id AND h.supersededBy IS NULL
+    WHERE m.sessionId = ?
+    ORDER BY m.createdAt, h.hole
+
+─────────────────────────────────────────
+B2. db.js CHANGES
+─────────────────────────────────────────
+
+Replace db.js entirely. New exported functions:
+  getActiveSession()
+    Returns the session with the most recent date. Creates a default one if none exists.
+    (Replaces getOrCreateTournament internally.)
+
+  createSession(name)
+    Inserts a new session row with a generated id and today's date.
+    Returns the new session.
+
+  createMatch(sessionId, { title, referencePlayer, opponent })
+    Generates a 6-char hex token via crypto.randomBytes(3).toString('hex'),
+    retrying on collision. Inserts match row.
+    Returns { id, token, title, referencePlayer, opponent }.
+
+  getMatchByToken(token)
+    Returns match row or null if not found.
+
+  updateMatch(matchId, { title, referencePlayer, opponent })
+    Updates only the provided fields. Returns updated match state.
+
+  readMatchState(matchId)
+    Returns { id, token, title, referencePlayer, opponent,
+              holes: [{hole, result, recordedAt}] }
+    Holes = WHERE supersededBy IS NULL ORDER BY hole.
+
+  setHole(matchId, holeNumber, result)
+    Transaction:
+      1. Find existing current row: SELECT id FROM holes WHERE matchId=? AND hole=? AND supersededBy IS NULL
+      2. INSERT new row (get lastInsertRowid)
+      3. If existing row found: UPDATE holes SET supersededBy = lastInsertRowid WHERE id = existingId
+    Returns updated match state (readMatchState).
+
+  readLiveState(sessionId)
+    Returns all matches in the session with their current holes.
+    Token is NOT included in the return value (live feed must not expose it).
+
+  readAuditLog(matchId)
+    Returns all holes rows for the match ordered by recordedAt (full history).
+
+─────────────────────────────────────────
+B3. server.js CHANGES
+─────────────────────────────────────────
+
+ENV VARS
+  SESSION_CODE    Day-of creation gate. Compare with req.body.code using
+                  crypto.timingSafeEqual() to avoid timing attacks.
+                  If not set: match creation is open.
+  PORT            Already supported.
+
+NEW ROUTES
+
+  GET /new
+    res.sendFile('public/new.html')
+
+  POST /new
+    Body: { code, title, referencePlayer, opponent }
+    Validate session code against SESSION_CODE env var.
+    Create match via db.createMatch().
+    Generate QR code data URL via the 'qrcode' npm package:
+      const QRCode = require('qrcode');
+      const recorderUrl = `${req.protocol}://${req.get('host')}/match/${token}`;
+      const qrDataUrl = await QRCode.toDataURL(recorderUrl);
+    Returns: { token, recorderUrl, qrDataUrl }
+    Errors: 401 if session code wrong, 400 if validation fails.
+
+  GET /match/:token
+    Validate token exists in DB (db.getMatchByToken).
+    res.sendFile('public/recorder.html')
+    Returns 404 if token not found.
+
+  GET /api/match/:token
+    Returns db.readMatchState(match.id)
+    401 if token not found.
+
+  PUT /api/match/:token
+    Body: { title?, referencePlayer?, opponent? }  (all optional, update only provided fields)
+    Validate token. UPDATE matches SET ... WHERE token = ?
+    Returns updated match state.
+
+  PUT /api/match/:token/holes/:hole
+    Body: { result }   (one of 'win','halve','loss')
+    Validate token, validate hole (1-99 integer), validate result.
+    Call db.setHole(match.id, holeNumber, result).
+    Returns updated match state.
+
+  GET /live
+    res.sendFile('public/live.html')  ← new dedicated live page
+
+  GET /live/:matchId
+    res.sendFile('public/live.html')  ← same file, JS handles drill-down
+
+  GET /api/live
+    Returns db.readLiveState(activeSession.id)
+    Shape: { session: {id, name, date}, matches: [{id, title, referencePlayer, opponent, holes:[...]}] }
+    NOTE: token is NOT in the response.
+
+  GET /api/match/:token/audit
+    Returns db.readAuditLog(match.id)
+    Shape: { matchId, events: [{id, hole, result, recordedAt, supersededBy}] }
+
+ROUTES TO KEEP (updated behaviour)
+  GET /   → redirect to /live (or keep serving index.html if repurposed as landing)
+
+ROUTES TO REMOVE
+  POST /api   (full-state sync — replaced by PUT /api/match/:token/holes/:hole)
+  GET  /api   (replaced by /api/live and /api/match/:token)
+
+MIDDLEWARE NOTE
+  validateData() in server.js becomes obsolete. Per-endpoint inline validation
+  replaces it. Remove once old /api routes are removed.
+
+DEPENDENCY TO ADD
+  npm install qrcode
+  (Server-side QR generation. Returns a data URL. No CDN, no external service.)
+
+─────────────────────────────────────────
+B4. FRONTEND CHANGES
+─────────────────────────────────────────
+
+SPLIT INTO THREE PAGES (each with its own HTML + JS file)
+  public/new.html + new.js          Match creation form
+  public/recorder.html + recorder.js Recorder view (one match)
+  public/live.html + live.js         Live feed (all matches + drill-down)
+
+All three pages share the same CSS design language as index.html.
+Move shared CSS to public/style.css and <link> it from all pages.
+Keep escapeHtml(), formatTime(), scoreText(), RESULT constant in a
+shared public/common.js included by all pages.
+
+PAGE: public/new.html + new.js
+  Form fields: session code (if SESSION_CODE is set), match title,
+               reference player name, opponent name.
+  On submit: POST /new, show spinner.
+  On success: hide form, show:
+    - "Match créé !" heading
+    - Big copyable recorder URL
+    - QR code image (<img src="{qrDataUrl}">)
+    - "Ouvrir" button (opens /match/:token in same tab)
+    - "Créer un autre match" link (reloads /new)
+  On error 401: "Code de session incorrect."
+  On error 400: show error message.
+
+PAGE: public/recorder.html + recorder.js
+  Replaces the current write mode of index.html for a single match.
+  Token extracted from URL: window.location.pathname.split('/')[2]
+  fetchData() → GET /api/match/:token
+  setHole(hole, result) → PUT /api/match/:token/holes/:hole (no debounce needed)
+  No deleteHole() — "Supprimer" button removed from modal.
+  Correction flow: modal shows 3 choice buttons only (win/halve/loss), calls setHole.
+  updateNames() → PUT /api/match/:token  (new endpoint, update title/players)
+    Body: { title?, referencePlayer?, opponent? }
+    Server: UPDATE matches SET ... WHERE token = ?
+  Polling: 10s (recorder is the source of truth, aggressive polling unnecessary)
+  State shape: single match object, no matches array.
+  Toolbar: "Copier le lien live" (copies /live URL, not /match/:token),
+           "Voir l'audit" (opens /match/:token/audit).
+  Remove: "Ouvrir le live", "Reset all", "Reset match" buttons.
+    Rationale: append-only — resets are not possible in system-of-record mode.
+
+PAGE: public/live.html + live.js
+  Two sub-views managed in JS (no page reload):
+    1. Match list: cards for each match showing title, players, current score.
+       Tap a card → drill-down to detail view.
+       URL updates to /live/:matchId via history.pushState().
+    2. Match detail: same renderMatch() output as today, read-only, no buttons.
+       Back button → returns to match list.
+  fetchData() → GET /api/live (all matches)
+  Polling: every 5s (reduced from current 2s).
+  Token never displayed.
+  modePill shows "Live" not "Live read-only".
+
+SHARED: public/common.js
+  escapeHtml(), formatTime(), scoreText(), resultLabel(), RESULT constant,
+  orderedHoles(), enrichHoles(), matchStatus() (with fix for A3 above).
+
+─────────────────────────────────────────
+B5. IMPLEMENTATION ORDER
+─────────────────────────────────────────
+
+Recommended sequence to avoid breaking the running app:
+
+  Step 1: Delete scores.db. Rewrite db.js from scratch with the new schema
+          (B1) and new functions (B2). Keep old readState/writeState exports
+          temporarily so server.js doesn't break until Step 2.
+
+  Step 2: server.js — add new routes alongside old ones. Test new endpoints.
+          Old POST/GET /api still work during transition.
+
+  Step 3: public/common.js + public/style.css — extract shared code.
+
+  Step 4: public/new.html + new.js — creation flow.
+
+  Step 5: public/recorder.html + recorder.js — recorder view.
+
+  Step 6: public/live.html + live.js — live feed + drill-down.
+
+  Step 7: Remove old routes (GET/POST /api) and old index.html once new
+          pages are verified working.
+
+  Step 8: Apply quick-win bug fixes (A1-A5) if not already done inline.
+
+
+════════════════════════════════════════
+C. DEFERRED / FUTURE IDEAS
+════════════════════════════════════════
+
+C1. Match completion display (dormie / "X&Y" notation) — see bug fix A3 above.
+
+C2. Audit/replay UI at /match/:token/audit
+    Timeline showing each entry and correction in chronological order.
+    "Replay" mode: step through holes one by one.
+
+C3. Session archive — /sessions listing all past sessions, read-only.
+
+C4. Stats across sessions (win rate per player, average score by hole).
+
+C5. Real-time push (Server-Sent Events) to replace polling on the live feed.
+    Server sends an event on every setHole() call. Client subscribes to
+    GET /api/live/stream (text/event-stream).
+
+C6. QR code on /new success page should also be downloadable as PNG.
+
+C7. Progressive Web App manifest so recorders can "Add to Home Screen"
+    and open without browser chrome on mobile.

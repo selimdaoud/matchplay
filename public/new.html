@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nouveau match — Matchplay Live</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div>
+        <h1>Nouveau match</h1>
+        <div class="subtitle">Créez un match et partagez le lien au marqueur.</div>
+      </div>
+      <a class="pill" href="/live" style="text-decoration:none">← Live</a>
+    </header>
+
+    <div class="card form-card" id="formSection">
+      <div class="form-group" id="codeGroup" style="display:none">
+        <label for="sessionCode">Code de session</label>
+        <input type="password" id="sessionCode" placeholder="Code annoncé par l'organisateur" autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label for="matchTitle">Titre du match</label>
+        <input type="text" id="matchTitle" placeholder="Ex: Demi-finale" />
+      </div>
+      <div class="form-group">
+        <label for="refPlayer">Joueur de référence</label>
+        <input type="text" id="refPlayer" placeholder="Nom du joueur" />
+      </div>
+      <div class="form-group">
+        <label for="opponent">Adversaire</label>
+        <input type="text" id="opponent" placeholder="Nom de l'adversaire" />
+      </div>
+      <div id="formError" style="color:var(--danger);font-size:14px;margin-bottom:10px;display:none"></div>
+      <button class="form-submit" id="submitBtn">Créer le match</button>
+    </div>
+
+    <div class="card form-card" id="successSection" style="display:none">
+      <h2 style="margin:0 0 6px;letter-spacing:-0.04em">Match créé !</h2>
+      <p style="color:var(--muted);margin:0 0 16px;font-size:14px">
+        Partagez ce lien au marqueur. Il suffit de l'ouvrir sur son téléphone.
+      </p>
+      <div class="recorder-url" id="recorderUrlDisplay"></div>
+      <div class="qr-section">
+        <img id="qrImage" alt="QR code lien marqueur" />
+      </div>
+      <div class="toolbar" style="margin-top:16px">
+        <button class="btn primary" id="openRecorder">Ouvrir comme marqueur</button>
+        <button class="btn" id="copyLink">Copier le lien</button>
+      </div>
+      <div style="margin-top:16px;text-align:center">
+        <a href="/new" style="color:var(--muted);font-size:14px">+ Créer un autre match</a>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let recorderUrl = '';
+
+    async function checkSessionCodeRequired() {
+      const res = await fetch('/api/live');
+      // We use a separate lightweight endpoint; for now just show the field
+      // Server will reject if SESSION_CODE is set and code is wrong.
+      // Show code field always — it's harmless if SESSION_CODE is not set.
+      document.getElementById('codeGroup').style.display = 'block';
+    }
+
+    checkSessionCodeRequired().catch(() => {
+      document.getElementById('codeGroup').style.display = 'block';
+    });
+
+    document.getElementById('submitBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('submitBtn');
+      const errEl = document.getElementById('formError');
+      errEl.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'Création…';
+
+      const body = {
+        code: document.getElementById('sessionCode').value.trim(),
+        title: document.getElementById('matchTitle').value.trim(),
+        referencePlayer: document.getElementById('refPlayer').value.trim(),
+        opponent: document.getElementById('opponent').value.trim(),
+      };
+
+      try {
+        const res = await fetch('/new', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errEl.textContent = data.error || 'Erreur inconnue.';
+          errEl.style.display = 'block';
+          return;
+        }
+        recorderUrl = data.recorderUrl;
+        document.getElementById('recorderUrlDisplay').textContent = recorderUrl;
+        document.getElementById('qrImage').src = data.qrDataUrl;
+        document.getElementById('formSection').style.display = 'none';
+        document.getElementById('successSection').style.display = 'block';
+      } catch (e) {
+        errEl.textContent = 'Erreur réseau. Réessayez.';
+        errEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Créer le match';
+      }
+    });
+
+    document.getElementById('openRecorder').addEventListener('click', () => {
+      window.location.href = recorderUrl;
+    });
+
+    document.getElementById('copyLink').addEventListener('click', async () => {
+      await navigator.clipboard.writeText(recorderUrl);
+      const btn = document.getElementById('copyLink');
+      btn.textContent = 'Copié !';
+      setTimeout(() => { btn.textContent = 'Copier le lien'; }, 2000);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Marqueur — Matchplay Live</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div>
+        <h1>Matchplay Live</h1>
+        <div class="subtitle" id="subtitle">Chargement…</div>
+      </div>
+      <div class="pill" id="modePill">Marqueur</div>
+    </header>
+
+    <div class="toolbar" id="toolbar">
+      <button class="btn subtle" id="copyLiveLink">Copier le lien live</button>
+      <button class="btn subtle" id="openAudit">Voir l'audit</button>
+    </div>
+
+    <section id="matchSection"></section>
+  </main>
+
+  <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true">
+      <h2 id="modalTitle">Corriger le trou</h2>
+      <p id="modalText"></p>
+      <div class="choice-grid" id="modalChoices"></div>
+      <div class="footer-actions">
+        <button class="btn" id="closeModal">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/common.js"></script>
+  <script src="/recorder.js"></script>
+</body>
+</html>

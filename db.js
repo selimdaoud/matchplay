@@ -1,25 +1,24 @@
 const Database = require('better-sqlite3');
+const crypto = require('crypto');
 const path = require('path');
-const fs = require('fs');
 
-const DB_FILE = path.join(__dirname, 'scores.db');
-const JSON_FILE = path.join(__dirname, 'scores.json');
-
-const db = new Database(DB_FILE);
+const db = new Database(path.join(__dirname, 'scores.db'));
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 db.exec(`
-  CREATE TABLE IF NOT EXISTS tournaments (
+  CREATE TABLE IF NOT EXISTS sessions (
     id        TEXT PRIMARY KEY,
     name      TEXT NOT NULL,
     date      TEXT NOT NULL,
+    code      TEXT,
     updatedAt TEXT NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS matches (
     id              TEXT PRIMARY KEY,
-    tournamentId    TEXT NOT NULL REFERENCES tournaments(id),
+    sessionId       TEXT NOT NULL REFERENCES sessions(id),
+    token           TEXT NOT NULL UNIQUE,
     title           TEXT NOT NULL DEFAULT '',
     referencePlayer TEXT NOT NULL DEFAULT '',
     opponent        TEXT NOT NULL DEFAULT '',
@@ -27,115 +26,115 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS holes (
-    id       INTEGER PRIMARY KEY AUTOINCREMENT,
-    matchId  TEXT NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-    hole     INTEGER NOT NULL,
-    result   TEXT NOT NULL CHECK(result IN ('win', 'halve', 'loss')),
-    playedAt TEXT NOT NULL,
-    UNIQUE(matchId, hole)
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    matchId      TEXT NOT NULL REFERENCES matches(id),
+    hole         INTEGER NOT NULL,
+    result       TEXT NOT NULL CHECK(result IN ('win','halve','loss')),
+    recordedAt   TEXT NOT NULL,
+    supersededBy INTEGER REFERENCES holes(id)
   );
 `);
 
 const stmts = {
-  getLatestTournament: db.prepare('SELECT * FROM tournaments ORDER BY date DESC, rowid DESC LIMIT 1'),
-  insertTournament:    db.prepare('INSERT INTO tournaments (id, name, date, updatedAt) VALUES (?, ?, ?, ?)'),
-  getTournament:       db.prepare('SELECT * FROM tournaments WHERE id = ?'),
-  updateTournamentTs:  db.prepare('UPDATE tournaments SET updatedAt = ? WHERE id = ?'),
-  getMatches:          db.prepare('SELECT id, title, referencePlayer, opponent FROM matches WHERE tournamentId = ? ORDER BY createdAt'),
-  getHoles:            db.prepare('SELECT hole, result, playedAt FROM holes WHERE matchId = ? ORDER BY hole'),
-  upsertMatch:         db.prepare(`
-    INSERT INTO matches (id, tournamentId, title, referencePlayer, opponent, createdAt)
-    VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-      title           = excluded.title,
-      referencePlayer = excluded.referencePlayer,
-      opponent        = excluded.opponent
-  `),
-  upsertHole: db.prepare(`
-    INSERT INTO holes (matchId, hole, result, playedAt)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(matchId, hole) DO UPDATE SET
-      result   = excluded.result,
-      playedAt = CASE WHEN result = excluded.result THEN playedAt ELSE excluded.playedAt END
-  `),
-  deleteOrphanHoles: db.prepare('DELETE FROM holes WHERE matchId = ? AND hole NOT IN (SELECT value FROM json_each(?))'),
-  deleteAllHoles:    db.prepare('DELETE FROM holes WHERE matchId = ?'),
+  getLatestSession:  db.prepare('SELECT * FROM sessions ORDER BY date DESC, rowid DESC LIMIT 1'),
+  insertSession:     db.prepare('INSERT INTO sessions (id, name, date, code, updatedAt) VALUES (?, ?, ?, ?, ?)'),
+  getMatchByToken:   db.prepare('SELECT * FROM matches WHERE token = ?'),
+  getMatchById:      db.prepare('SELECT * FROM matches WHERE id = ?'),
+  getMatchesBySession: db.prepare('SELECT id, token, title, referencePlayer, opponent FROM matches WHERE sessionId = ? ORDER BY createdAt'),
+  insertMatch:       db.prepare('INSERT INTO matches (id, sessionId, token, title, referencePlayer, opponent, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)'),
+  updateMatch:       db.prepare('UPDATE matches SET title = ?, referencePlayer = ?, opponent = ? WHERE id = ?'),
+  getCurrentHoles:   db.prepare('SELECT hole, result, recordedAt FROM holes WHERE matchId = ? AND supersededBy IS NULL ORDER BY hole'),
+  getAllHoles:        db.prepare('SELECT id, hole, result, recordedAt, supersededBy FROM holes WHERE matchId = ? ORDER BY recordedAt'),
+  findCurrentHole:   db.prepare('SELECT id FROM holes WHERE matchId = ? AND hole = ? AND supersededBy IS NULL'),
+  insertHole:        db.prepare('INSERT INTO holes (matchId, hole, result, recordedAt) VALUES (?, ?, ?, ?)'),
+  supersede:         db.prepare('UPDATE holes SET supersededBy = ? WHERE id = ?'),
 };
 
-function getOrCreateTournament() {
-  const existing = stmts.getLatestTournament.get();
+function getActiveSession() {
+  const existing = stmts.getLatestSession.get();
   if (existing) return existing;
-  const id = `tournament-${Date.now()}`;
+  const id = `session-${Date.now()}`;
   const now = new Date().toISOString();
-  stmts.insertTournament.run(id, 'Tournoi', now.slice(0, 10), now);
-  return stmts.getTournament.get(id);
+  stmts.insertSession.run(id, 'Session', now.slice(0, 10), null, now);
+  return stmts.getLatestSession.get();
 }
 
-function readState() {
-  const tournament = getOrCreateTournament();
-  const matches = stmts.getMatches.all(tournament.id);
-  for (const match of matches) {
-    match.holes = stmts.getHoles.all(match.id);
-  }
-  return { matches, updatedAt: tournament.updatedAt };
+function createSession(name, code) {
+  const id = `session-${Date.now()}`;
+  const now = new Date().toISOString();
+  stmts.insertSession.run(id, name || 'Session', now.slice(0, 10), code || null, now);
+  return stmts.getLatestSession.get();
 }
 
-const syncState = db.transaction((matches) => {
-  const tournament = getOrCreateTournament();
+function generateToken() {
+  let token;
+  do {
+    token = crypto.randomBytes(3).toString('hex');
+  } while (stmts.getMatchByToken.get(token));
+  return token;
+}
+
+function createMatch(sessionId, { title, referencePlayer, opponent }) {
+  const id = `match-${Date.now()}`;
+  const token = generateToken();
   const now = new Date().toISOString();
+  stmts.insertMatch.run(id, sessionId, token, title || '', referencePlayer || '', opponent || '', now);
+  return stmts.getMatchByToken.get(token);
+}
 
-  for (const match of matches) {
-    stmts.upsertMatch.run(match.id, tournament.id, match.title || '', match.referencePlayer || '', match.opponent || '', now);
+function getMatchByToken(token) {
+  return stmts.getMatchByToken.get(token) || null;
+}
 
-    const holeNumbers = match.holes.map((h) => h.hole);
-    if (holeNumbers.length > 0) {
-      stmts.deleteOrphanHoles.run(match.id, JSON.stringify(holeNumbers));
-      for (const h of match.holes) {
-        stmts.upsertHole.run(match.id, h.hole, h.result, now);
-      }
-    } else {
-      stmts.deleteAllHoles.run(match.id);
-    }
-  }
+function updateMatch(matchId, { title, referencePlayer, opponent }) {
+  const match = stmts.getMatchById.get(matchId);
+  if (!match) return null;
+  stmts.updateMatch.run(
+    title !== undefined ? title : match.title,
+    referencePlayer !== undefined ? referencePlayer : match.referencePlayer,
+    opponent !== undefined ? opponent : match.opponent,
+    matchId
+  );
+  return readMatchState(matchId);
+}
 
-  stmts.updateTournamentTs.run(now, tournament.id);
-  return readState();
+function readMatchState(matchId) {
+  const match = stmts.getMatchById.get(matchId);
+  if (!match) return null;
+  const holes = stmts.getCurrentHoles.all(matchId);
+  return { id: match.id, token: match.token, title: match.title, referencePlayer: match.referencePlayer, opponent: match.opponent, holes };
+}
+
+const setHole = db.transaction((matchId, holeNumber, result) => {
+  const existing = stmts.findCurrentHole.get(matchId, holeNumber);
+  const now = new Date().toISOString();
+  stmts.insertHole.run(matchId, holeNumber, result, now);
+  const newId = db.prepare('SELECT last_insert_rowid() AS id').get().id;
+  if (existing) stmts.supersede.run(newId, existing.id);
+  return readMatchState(matchId);
 });
 
-function writeState(matches) {
-  return syncState(matches);
+function readLiveState(sessionId) {
+  const matches = stmts.getMatchesBySession.all(sessionId);
+  for (const match of matches) {
+    match.holes = stmts.getCurrentHoles.all(match.id);
+    delete match.token;
+  }
+  return matches;
 }
 
-function importJsonIfNeeded() {
-  const count = db.prepare('SELECT COUNT(*) AS n FROM tournaments').get().n;
-  if (count > 0 || !fs.existsSync(JSON_FILE)) return;
-
-  let data;
-  try {
-    data = JSON.parse(fs.readFileSync(JSON_FILE, 'utf8'));
-  } catch {
-    return;
-  }
-  if (!Array.isArray(data.matches)) return;
-
-  const now = new Date().toISOString();
-  stmts.insertTournament.run('tournament-import', 'Import initial', now.slice(0, 10), data.updatedAt || now);
-
-  for (let i = 0; i < data.matches.length; i++) {
-    const m = data.matches[i];
-    const matchId = m.id || `match-${i + 1}`;
-    stmts.upsertMatch.run(matchId, 'tournament-import', m.title || `Match ${i + 1}`, m.referencePlayer || '', m.opponent || '', now);
-    for (const h of (m.holes || [])) {
-      if (Number.isInteger(h.hole) && ['win', 'halve', 'loss'].includes(h.result)) {
-        stmts.upsertHole.run(matchId, h.hole, h.result, now);
-      }
-    }
-  }
-
-  fs.renameSync(JSON_FILE, `${JSON_FILE}.bak`);
-  console.log('[db] Imported scores.json → scores.db (backup: scores.json.bak)');
+function readAuditLog(matchId) {
+  return stmts.getAllHoles.all(matchId);
 }
 
-importJsonIfNeeded();
-
-module.exports = { readState, writeState };
+module.exports = {
+  getActiveSession,
+  createSession,
+  createMatch,
+  getMatchByToken,
+  updateMatch,
+  readMatchState,
+  setHole,
+  readLiveState,
+  readAuditLog,
+};
