@@ -12,6 +12,66 @@
   <title>Nouveau match — Matchplay Live</title>
   <link rel="stylesheet" href="style.css" />
   <style>
+    .btn-info {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--card);
+      color: var(--muted);
+      font-size: 16px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .btn-info:hover { background: var(--neutral); }
+
+    dialog.info-dialog {
+      border: none;
+      border-radius: 22px;
+      padding: 24px;
+      width: min(420px, calc(100% - 32px));
+      box-shadow: 0 24px 64px rgba(0,0,0,.18);
+    }
+    dialog.info-dialog::backdrop {
+      background: rgba(10,16,10,.36);
+    }
+    dialog.info-dialog h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+      letter-spacing: -0.04em;
+    }
+    dialog.info-dialog p {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    dialog.info-dialog a { color: var(--accent); }
+    dialog.info-dialog .copyright {
+      margin-top: 20px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+    }
+    dialog.info-dialog .dialog-close {
+      display: block;
+      width: 100%;
+      margin-top: 16px;
+      padding: 11px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--card);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
     .match-admin-list { margin-top: 28px; }
     .match-admin-item {
       display: flex;
@@ -58,7 +118,10 @@
         <h1>Nouveau match</h1>
         <div class="subtitle">Créez un match et partagez le lien au marqueur.</div>
       </div>
-      <a class="pill" id="liveLink" style="text-decoration:none">← Live</a>
+      <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+        <button class="btn-info" id="infoBtn" title="Informations">ⓘ</button>
+        <a class="pill" id="liveLink" style="text-decoration:none">← Live</a>
+      </div>
     </header>
 
     <div class="card form-card" id="formSection">
@@ -109,7 +172,27 @@
     </div>
   </main>
 
+  <dialog class="info-dialog" id="infoDialog">
+    <h2>Code de session</h2>
+    <p>La création d'un match nécessite un <strong>code fourni par l'organisateur</strong>. Ce code garantit que seules les personnes autorisées peuvent ajouter des matchs à la session en cours.</p>
+    <p>Pour obtenir ce code, contactez l'organisateur à l'adresse :<br>
+      <a href="mailto:tipaza@gmail.com">tipaza@gmail.com</a>
+    </p>
+    <div class="copyright">© Matchplay Live — Tous droits réservés</div>
+    <button class="dialog-close" id="infoClose">Fermer</button>
+  </dialog>
+
   <script>
+    document.getElementById('infoBtn').addEventListener('click', () => {
+      document.getElementById('infoDialog').showModal();
+    });
+    document.getElementById('infoClose').addEventListener('click', () => {
+      document.getElementById('infoDialog').close();
+    });
+    document.getElementById('infoDialog').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) e.currentTarget.close();
+    });
+
     let recorderUrl = '';
     let matchList = [];
 
