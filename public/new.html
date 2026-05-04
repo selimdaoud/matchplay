@@ -23,7 +23,7 @@
     </header>
 
     <div class="card form-card" id="formSection">
-      <div class="form-group" id="codeGroup" style="display:none">
+      <div class="form-group" id="codeGroup">
         <label for="sessionCode">Code de session</label>
         <input type="password" id="sessionCode" placeholder="Code annoncé par l'organisateur" autocomplete="off" />
       </div>
@@ -68,9 +68,6 @@
     // Set nav links
     document.getElementById('liveLink').href = APP_BASE + '/live';
     document.getElementById('anotherMatch').href = APP_BASE + '/new';
-
-    // Show session code field — server rejects if code is wrong
-    document.getElementById('codeGroup').style.display = 'block';
 
     document.getElementById('submitBtn').addEventListener('click', async () => {
       const btn = document.getElementById('submitBtn');

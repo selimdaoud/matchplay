@@ -13,8 +13,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 function checkSessionCode(provided) {
   const expected = process.env.SESSION_CODE;
-  if (!expected) return true;
-  if (!provided) return false;
+  if (!expected || !provided) return false;
   try {
     const a = Buffer.from(provided.padEnd(32).slice(0, 32));
     const b = Buffer.from(expected.padEnd(32).slice(0, 32));

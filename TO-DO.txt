@@ -92,8 +92,7 @@ DESIGN PRINCIPLES (decided, not up for debate)
     only enter or correct a result, never erase one.
   - A session code (env var SESSION_CODE) gates match creation.
     Organiser announces it on the day. No admin page, no accounts.
-  - If SESSION_CODE env var is not set → match creation is open (suitable for
-    private/trusted deployments where the app URL itself is the credential).
+  - SESSION_CODE env var is mandatory — if not set, match creation is always refused.
 
 URL MAP
   /new                   Match creation form (served by server, HTML page)
