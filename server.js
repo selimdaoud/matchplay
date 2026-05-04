@@ -102,6 +102,46 @@ app.put('/api/match/:token/holes/:hole', (req, res) => {
   }
 });
 
+// ── Session match list (admin) ────────────────────────────────────────────────
+
+app.get('/api/session/matches', (_req, res) => {
+  try {
+    const session = db.getActiveSession();
+    res.json(db.getAllMatchesForSession(session.id));
+  } catch (error) {
+    console.error('[GET /api/session/matches]', error);
+    res.status(500).json({ error: 'Impossible de charger les matchs.' });
+  }
+});
+
+app.post('/api/match/:token/hide', (req, res) => {
+  try {
+    const { code } = req.body || {};
+    if (!checkSessionCode(code)) return res.status(401).json({ error: 'Code de session incorrect.' });
+    const match = db.getMatchByToken(req.params.token);
+    if (!match) return res.status(404).json({ error: 'Match introuvable.' });
+    db.setMatchHidden(match.id, true);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('[POST /api/match/:token/hide]', error);
+    res.status(500).json({ error: 'Impossible de masquer le match.' });
+  }
+});
+
+app.post('/api/match/:token/unhide', (req, res) => {
+  try {
+    const { code } = req.body || {};
+    if (!checkSessionCode(code)) return res.status(401).json({ error: 'Code de session incorrect.' });
+    const match = db.getMatchByToken(req.params.token);
+    if (!match) return res.status(404).json({ error: 'Match introuvable.' });
+    db.setMatchHidden(match.id, false);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('[POST /api/match/:token/unhide]', error);
+    res.status(500).json({ error: 'Impossible de restaurer le match.' });
+  }
+});
+
 // ── Live feed ─────────────────────────────────────────────────────────────────
 
 app.get(['/live', '/live/:matchId'], (_req, res) => {

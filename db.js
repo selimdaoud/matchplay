@@ -22,6 +22,7 @@ db.exec(`
     title           TEXT NOT NULL DEFAULT '',
     referencePlayer TEXT NOT NULL DEFAULT '',
     opponent        TEXT NOT NULL DEFAULT '',
+    hidden          INTEGER NOT NULL DEFAULT 0,
     createdAt       TEXT NOT NULL
   );
 
@@ -35,19 +36,27 @@ db.exec(`
   );
 `);
 
+// Migration: add hidden column to existing DBs
+const cols = db.prepare('PRAGMA table_info(matches)').all();
+if (!cols.find((c) => c.name === 'hidden')) {
+  db.exec('ALTER TABLE matches ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0');
+}
+
 const stmts = {
-  getLatestSession:  db.prepare('SELECT * FROM sessions ORDER BY date DESC, rowid DESC LIMIT 1'),
-  insertSession:     db.prepare('INSERT INTO sessions (id, name, date, code, updatedAt) VALUES (?, ?, ?, ?, ?)'),
-  getMatchByToken:   db.prepare('SELECT * FROM matches WHERE token = ?'),
-  getMatchById:      db.prepare('SELECT * FROM matches WHERE id = ?'),
-  getMatchesBySession: db.prepare('SELECT id, token, title, referencePlayer, opponent FROM matches WHERE sessionId = ? ORDER BY createdAt'),
-  insertMatch:       db.prepare('INSERT INTO matches (id, sessionId, token, title, referencePlayer, opponent, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)'),
-  updateMatch:       db.prepare('UPDATE matches SET title = ?, referencePlayer = ?, opponent = ? WHERE id = ?'),
-  getCurrentHoles:   db.prepare('SELECT hole, result, recordedAt FROM holes WHERE matchId = ? AND supersededBy IS NULL ORDER BY hole'),
-  getAllHoles:        db.prepare('SELECT id, hole, result, recordedAt, supersededBy FROM holes WHERE matchId = ? ORDER BY recordedAt'),
-  findCurrentHole:   db.prepare('SELECT id FROM holes WHERE matchId = ? AND hole = ? AND supersededBy IS NULL'),
-  insertHole:        db.prepare('INSERT INTO holes (matchId, hole, result, recordedAt) VALUES (?, ?, ?, ?)'),
-  supersede:         db.prepare('UPDATE holes SET supersededBy = ? WHERE id = ?'),
+  getLatestSession:      db.prepare('SELECT * FROM sessions ORDER BY date DESC, rowid DESC LIMIT 1'),
+  insertSession:         db.prepare('INSERT INTO sessions (id, name, date, code, updatedAt) VALUES (?, ?, ?, ?, ?)'),
+  getMatchByToken:       db.prepare('SELECT * FROM matches WHERE token = ?'),
+  getMatchById:          db.prepare('SELECT * FROM matches WHERE id = ?'),
+  getMatchesBySession:   db.prepare('SELECT id, title, referencePlayer, opponent FROM matches WHERE sessionId = ? AND hidden = 0 ORDER BY createdAt'),
+  getAllMatchesBySession: db.prepare('SELECT id, token, title, referencePlayer, opponent, hidden FROM matches WHERE sessionId = ? ORDER BY createdAt'),
+  insertMatch:           db.prepare('INSERT INTO matches (id, sessionId, token, title, referencePlayer, opponent, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)'),
+  updateMatch:           db.prepare('UPDATE matches SET title = ?, referencePlayer = ?, opponent = ? WHERE id = ?'),
+  setHidden:             db.prepare('UPDATE matches SET hidden = ? WHERE id = ?'),
+  getCurrentHoles:       db.prepare('SELECT hole, result, recordedAt FROM holes WHERE matchId = ? AND supersededBy IS NULL ORDER BY hole'),
+  getAllHoles:            db.prepare('SELECT id, hole, result, recordedAt, supersededBy FROM holes WHERE matchId = ? ORDER BY recordedAt'),
+  findCurrentHole:       db.prepare('SELECT id FROM holes WHERE matchId = ? AND hole = ? AND supersededBy IS NULL'),
+  insertHole:            db.prepare('INSERT INTO holes (matchId, hole, result, recordedAt) VALUES (?, ?, ?, ?)'),
+  supersede:             db.prepare('UPDATE holes SET supersededBy = ? WHERE id = ?'),
 };
 
 function getActiveSession() {
@@ -98,6 +107,10 @@ function updateMatch(matchId, { title, referencePlayer, opponent }) {
   return readMatchState(matchId);
 }
 
+function setMatchHidden(matchId, hidden) {
+  stmts.setHidden.run(hidden ? 1 : 0, matchId);
+}
+
 function readMatchState(matchId) {
   const match = stmts.getMatchById.get(matchId);
   if (!match) return null;
@@ -118,6 +131,14 @@ function readLiveState(sessionId) {
   const matches = stmts.getMatchesBySession.all(sessionId);
   for (const match of matches) {
     match.holes = stmts.getCurrentHoles.all(match.id);
+  }
+  return matches;
+}
+
+function getAllMatchesForSession(sessionId) {
+  const matches = stmts.getAllMatchesBySession.all(sessionId);
+  for (const match of matches) {
+    match.holesCount = stmts.getCurrentHoles.all(match.id).length;
     delete match.token;
   }
   return matches;
@@ -133,8 +154,10 @@ module.exports = {
   createMatch,
   getMatchByToken,
   updateMatch,
+  setMatchHidden,
   readMatchState,
   setHole,
   readLiveState,
+  getAllMatchesForSession,
   readAuditLog,
 };
