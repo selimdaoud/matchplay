@@ -137,7 +137,7 @@
       items.innerHTML = matchList.map((m) => `
         <div class="match-admin-item${m.hidden ? ' hidden-match' : ''}" data-token="${escToken(m.token || '')}">
           <div class="match-admin-info">
-            <div class="match-admin-title">${esc(m.title || 'Match')}</div>
+            <a class="match-admin-title" href="${APP_BASE}/match/${escToken(m.token || '')}" style="text-decoration:none;color:inherit">${esc(m.title || 'Match')}</a>
             <div class="match-admin-players">${esc(m.referencePlayer)} vs ${esc(m.opponent)}
               ${m.holesCount ? ` · ${m.holesCount} trou${m.holesCount > 1 ? 's' : ''}` : ''}
             </div>
