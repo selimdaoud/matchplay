@@ -1,0 +1,129 @@
+MATCHPLAY LIVE — MANUEL D'UTILISATION
+======================================
+Application de suivi de matchs de golf en match play.
+Accès : https://compet.golf/matchplay/
+
+
+════════════════════════════════════════
+PERSONAS
+════════════════════════════════════════
+
+  1. L'ORGANISATEUR  — crée les matchs, gère la journée
+  2. LE MARQUEUR     — saisit les résultats trou par trou
+  3. LE SPECTATEUR   — suit les scores en direct
+
+
+════════════════════════════════════════
+1. L'ORGANISATEUR
+════════════════════════════════════════
+
+AVANT LA JOURNÉE
+  Définir le code de session dans l'environnement du serveur :
+    SESSION_CODE=moncode npm start
+  Ce code est annoncé oralement le jour J. Il protège la création
+  de matchs — sans lui, personne ne peut créer de match.
+
+LE JOUR J
+
+  Créer un match
+  ──────────────
+  1. Aller sur https://compet.golf/matchplay/new
+  2. Saisir le code de session
+  3. Remplir : titre du match, joueur de référence, adversaire
+  4. Cliquer "Créer le match"
+  5. La page affiche :
+       - L'URL du marqueur (ex: https://compet.golf/matchplay/match/a3f2c1)
+       - Un QR code à scanner
+  6. Faire scanner le QR code au marqueur, ou lui envoyer le lien
+
+  Répéter l'opération pour chaque match de la journée.
+
+  Gérer les matchs
+  ────────────────
+  La liste des matchs du jour apparaît en bas de la page /new.
+  Chaque ligne est cliquable → ouvre la page de saisie du match.
+
+  Bouton "Masquer" : cache un match du live feed (ex: match de test,
+    erreur de création). Le match reste accessible via son lien.
+  Bouton "Restaurer" : remet un match masqué dans le live feed.
+  Ces actions nécessitent le code de session dans le champ du haut.
+
+  Partager le live
+  ────────────────
+  URL publique à diffuser aux spectateurs :
+    https://compet.golf/matchplay/live
+  Aucun code requis pour y accéder.
+
+
+════════════════════════════════════════
+2. LE MARQUEUR
+════════════════════════════════════════
+
+ACCÈS
+  Ouvrir le lien reçu de l'organisateur, ou scanner le QR code.
+  URL de la forme : https://compet.golf/matchplay/match/[code]
+  → Bookmarker cette page sur son téléphone.
+  → Ne pas partager ce lien (c'est la clé d'accès en écriture).
+
+SAISIR UN TROU
+  Sur la page, trois grands boutons apparaissent pour le prochain trou :
+    GAGNÉ   → le joueur de référence remporte le trou (+1)
+    ½       → trou partagé (score inchangé)
+    PERDU   → le joueur de référence perd le trou (-1)
+  Appuyer sur le bouton correspondant au résultat.
+  Le score cumulé se met à jour immédiatement.
+
+CORRIGER UN TROU
+  Dans l'historique (tableau en bas), appuyer sur la case résultat
+  du trou à corriger. Une fenêtre s'ouvre avec les 3 choix.
+  Sélectionner le bon résultat — l'ancien est conservé en base
+  (système d'enregistrement), seul le résultat courant change.
+  Il n'y a pas de suppression possible, uniquement correction.
+
+MODIFIER LES NOMS
+  Les champs "Joueur de référence" et "Adversaire" sont éditables
+  directement dans la page — modifier et quitter le champ pour sauvegarder.
+
+FIN DE MATCH
+  Quand le match est mathématiquement terminé (le leader ne peut
+  plus être rattrapé), les boutons de saisie sont remplacés par
+  un bandeau indiquant le résultat final (ex: "4&3", "2 UP").
+  Il reste possible de corriger un trou dans l'historique si besoin.
+
+BOUTONS DE LA BARRE D'OUTILS
+  "Copier le lien live" → copie l'URL publique /live à partager
+  "Voir l'audit"        → ouvre l'historique complet du match
+                          (toutes les saisies et corrections)
+
+
+════════════════════════════════════════
+3. LE SPECTATEUR
+════════════════════════════════════════
+
+ACCÈS
+  https://compet.golf/matchplay/live
+  Aucun code, aucune inscription. Page accessible à tous.
+  Les scores se rafraîchissent automatiquement toutes les 5 secondes.
+
+NAVIGATION
+  La page affiche la liste de tous les matchs en cours avec le
+  score actuel de chacun.
+  Appuyer sur un match → vue détaillée avec l'historique trou par trou.
+  Bouton "← Tous les matchs" pour revenir à la liste.
+
+
+════════════════════════════════════════
+LEXIQUE SCORES
+════════════════════════════════════════
+
+  AS       → égalité (all square)
+  X UP     → le joueur de référence mène de X trous
+  X DOWN   → le joueur de référence est mené de X trous
+  X&Y      → match terminé : gagné X UP avec Y trous restants
+             (ex: 3&2 = gagné 3 UP avec 2 trous à jouer)
+  Play-off → égalité après le trou 18, prolongation trou par trou
+
+  Résultats par trou :
+    G  (vert)   → trou gagné par le joueur de référence
+    ½  (gris)   → trou partagé
+    P  (rouge)  → trou perdu par le joueur de référence
