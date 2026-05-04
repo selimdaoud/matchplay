@@ -6,6 +6,7 @@ const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const BASE_PATH = (process.env.BASE_PATH || '').replace(/\/$/, '');
 
 app.use(express.json({ limit: '200kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -40,7 +41,7 @@ app.post('/new', async (req, res) => {
     }
     const session = db.getActiveSession();
     const match = db.createMatch(session.id, { title, referencePlayer, opponent });
-    const recorderUrl = `${req.protocol}://${req.get('host')}/match/${match.token}`;
+    const recorderUrl = `${req.protocol}://${req.get('host')}${BASE_PATH}/match/${match.token}`;
     const qrDataUrl = await QRCode.toDataURL(recorderUrl);
     res.json({ token: match.token, recorderUrl, qrDataUrl });
   } catch (error) {
