@@ -7,7 +7,7 @@
     var _base = document.createElement('base');
     _base.href = window.location.pathname.replace(/\/live(\/[^/]*)?\/?$/, '/');
     document.head.appendChild(_base);
-    window.APP_BASE = _base.href.replace(/\/$/, '');
+    window.APP_BASE = window.location.pathname.replace(/\/live(\/[^/]*)?\/?$/, '').replace(/\/$/, '');
   </script>
   <title>Live — Matchplay Live</title>
   <link rel="stylesheet" href="style.css" />
