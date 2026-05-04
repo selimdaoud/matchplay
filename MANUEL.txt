@@ -19,7 +19,7 @@ PERSONAS
 
 AVANT LA JOURNÉE
   Définir le code de session dans l'environnement du serveur :
-    SESSION_CODE=moncode npm start
+    sudo env SESSION_CODE=moncode npm start
   Ce code est annoncé oralement le jour J. Il protège la création
   de matchs — sans lui, personne ne peut créer de match.
 
@@ -53,6 +53,14 @@ LE JOUR J
   URL publique à diffuser aux spectateurs :
     https://compet.golf/matchplay/live
   Aucun code requis pour y accéder.
+
+
+  Réinitialiser une session
+  ─────────────────────────
+  Pour effacer tous les matchs et scores d'une session (irréversible) :
+    node scripts/reset-session.js
+  Le script liste les sessions disponibles, demande une confirmation,
+  puis supprime tous les trous, matchs et la session elle-même.
 
 
 ════════════════════════════════════════
