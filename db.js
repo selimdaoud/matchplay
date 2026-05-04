@@ -139,7 +139,6 @@ function getAllMatchesForSession(sessionId) {
   const matches = stmts.getAllMatchesBySession.all(sessionId);
   for (const match of matches) {
     match.holesCount = stmts.getCurrentHoles.all(match.id).length;
-    delete match.token;
   }
   return matches;
 }
