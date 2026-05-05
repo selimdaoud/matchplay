@@ -25,9 +25,51 @@
     .btn { display: block; width: 100%; padding: 14px; border-radius: 999px; font-weight: 700; font-size: 15px; text-align: center; }
     .btn-primary { background: var(--text); color: white; }
     .btn-subtle { background: var(--card); border: 1px solid var(--line); color: var(--muted); font-size: 13px; padding: 10px 14px; border-radius: 999px; }
+
+    /* ── Saved sessions ──────────────────────────────────────────────────────── */
+    .saved-label {
+      font-size: 12px; font-weight: 800; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .08em;
+      margin-bottom: 10px;
+    }
+    .saved-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .saved-info { flex: 1; min-width: 0; }
+    .saved-title { font-weight: 800; font-size: 15px; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .saved-players { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .saved-meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .btn-resume {
+      flex-shrink: 0;
+      padding: 9px 16px;
+      border-radius: 999px;
+      border: none;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .divider {
+      display: flex; align-items: center; gap: 10px;
+      color: var(--muted); font-size: 12px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em;
+      margin: 18px 0 16px;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--line);
+    }
+
+    /* ── Status / recording ──────────────────────────────────────────────────── */
     .status-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font-size: 13px; margin-bottom: 16px; }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
-    .dot.on { background: var(--accent); }
+    .dot.on   { background: var(--accent); }
     .dot.wait { background: #f0a500; }
     .players-row { display: flex; align-items: baseline; gap: 8px; font-size: 18px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 6px; }
     .players-row span { color: var(--muted); font-weight: 500; font-size: 14px; }
@@ -36,8 +78,8 @@
     .big-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
     .big-btn { min-height: 88px; border-radius: 18px; border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-weight: 850; font-size: 17px; background: white; color: var(--text); }
     .big-btn small { font-size: 11px; font-weight: 600; color: var(--muted); }
-    .big-btn.win  { background: var(--accent-soft); border-color: rgba(31,111,74,.24); color: var(--accent); }
-    .big-btn.loss { background: var(--danger-soft); border-color: rgba(163,58,50,.22); color: var(--danger); }
+    .big-btn.win   { background: var(--accent-soft); border-color: rgba(31,111,74,.24); color: var(--accent); }
+    .big-btn.loss  { background: var(--danger-soft); border-color: rgba(163,58,50,.22); color: var(--danger); }
     .big-btn.halve { background: var(--neutral); }
     .section-label { color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; }
     .history-wrap { overflow-x: auto; }
@@ -61,7 +103,16 @@
   <!-- ── Setup ── -->
   <div id="setupScreen">
     <h1>Marqueur</h1>
-    <p class="subtitle">Saisissez les informations du match pour démarrer.</p>
+    <p class="subtitle">Reprenez une session en cours ou démarrez un nouveau match.</p>
+
+    <!-- Sessions sauvegardées -->
+    <div id="savedSection" class="hidden">
+      <div class="saved-label">Session en cours</div>
+      <div id="savedList"></div>
+      <div class="divider">Nouveau match</div>
+    </div>
+
+    <!-- Formulaire nouveau match -->
     <div class="card">
       <label for="inCode">Code du match</label>
       <input id="inCode" type="text" placeholder="Ex: finale-a" autocomplete="off" spellcheck="false"/>
@@ -130,7 +181,7 @@
   let state = { title: '', referencePlayer: '', opponent: '', holes: [] };
   let currentCode = '';
 
-  // ── Persistence ────────────────────────────────────────────────────────────
+  // ── Persistence ─────────────────────────────────────────────────────────────
 
   const storageKey = (code) => `matchplay-p2p-${code}`;
 
@@ -142,7 +193,21 @@
     try { return JSON.parse(localStorage.getItem(storageKey(code))); } catch { return null; }
   }
 
-  // ── Score logic ─────────────────────────────────────────────────────────────
+  function allSavedSessions() {
+    const sessions = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key.startsWith('matchplay-p2p-')) continue;
+      const code = key.replace('matchplay-p2p-', '');
+      try {
+        const data = JSON.parse(localStorage.getItem(key));
+        if (data && data.referencePlayer) sessions.push({ code, data });
+      } catch {}
+    }
+    return sessions;
+  }
+
+  // ── Score logic ──────────────────────────────────────────────────────────────
 
   function enrichHoles() {
     let score = 0;
@@ -165,7 +230,56 @@
     return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  function esc(v) {
+    return String(v || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Saved sessions UI ────────────────────────────────────────────────────────
+
+  function renderSavedSessions() {
+    const sessions = allSavedSessions();
+    if (!sessions.length) return;
+
+    const section = document.getElementById('savedSection');
+    const list    = document.getElementById('savedList');
+    section.classList.remove('hidden');
+
+    list.innerHTML = sessions.map(({ code, data }) => {
+      const holesCount = (data.holes || []).length;
+      const lastHole   = [...(data.holes || [])].sort((a, b) => {
+        return new Date(b.playedAt || 0) - new Date(a.playedAt || 0);
+      })[0];
+      const lastTime = lastHole?.playedAt ? formatTime(lastHole.playedAt) : null;
+      const meta = [
+        holesCount ? `${holesCount} trou${holesCount > 1 ? 's' : ''} joué${holesCount > 1 ? 's' : ''}` : 'Aucun trou saisi',
+        lastTime ? `dernière saisie ${lastTime}` : null,
+      ].filter(Boolean).join(' · ');
+
+      return `
+        <div class="saved-card">
+          <div class="saved-info">
+            <div class="saved-title">${esc(data.title || `${data.referencePlayer} vs ${data.opponent}`)}</div>
+            <div class="saved-players">${esc(data.referencePlayer)} vs ${esc(data.opponent)}</div>
+            <div class="saved-meta">${esc(meta)}</div>
+          </div>
+          <button class="btn-resume" data-code="${esc(code)}">Reprendre</button>
+        </div>
+      `;
+    }).join('');
+
+    list.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-resume');
+      if (!btn) return;
+      const code   = btn.dataset.code;
+      const saved  = loadLocal(code);
+      if (!saved) return;
+      currentCode = code;
+      state = saved;
+      startPeer(code);
+    });
+  }
+
+  // ── Render recorder ──────────────────────────────────────────────────────────
 
   function render() {
     const holes = enrichHoles();
@@ -173,10 +287,10 @@
     const score = last ? last.score : 0;
     const next  = nextHole();
 
-    document.getElementById('scoreDisplay').textContent  = scoreText(score);
-    document.getElementById('scoreDetail').textContent   = `Prochain trou ${next}`;
-    document.getElementById('winLabel').textContent      = `trou ${next}`;
-    document.getElementById('lossLabel').textContent     = `trou ${next}`;
+    document.getElementById('scoreDisplay').textContent = scoreText(score);
+    document.getElementById('scoreDetail').textContent  = `Prochain trou ${next}`;
+    document.getElementById('winLabel').textContent     = `trou ${next}`;
+    document.getElementById('lossLabel').textContent    = `trou ${next}`;
 
     document.getElementById('historyBody').innerHTML = holes.map(h => `
       <tr>
@@ -189,20 +303,20 @@
 
   function updateStatus() {
     const n = conns.size;
-    document.getElementById('statusDot').className = `dot ${n > 0 ? 'on' : 'wait'}`;
-    document.getElementById('statusText').textContent = n === 0
+    document.getElementById('statusDot').className     = `dot ${n > 0 ? 'on' : 'wait'}`;
+    document.getElementById('statusText').textContent  = n === 0
       ? 'En attente de spectateurs…'
       : `${n} spectateur${n > 1 ? 's' : ''} connecté${n > 1 ? 's' : ''}`;
   }
 
-  // ── Broadcast ───────────────────────────────────────────────────────────────
+  // ── Broadcast ────────────────────────────────────────────────────────────────
 
   function broadcast() {
     const msg = JSON.stringify({ type: 'state', state });
     for (const conn of conns) { try { conn.send(msg); } catch {} }
   }
 
-  // ── Actions ─────────────────────────────────────────────────────────────────
+  // ── Actions ──────────────────────────────────────────────────────────────────
 
   function recordHole(result) {
     state.holes.push({ hole: nextHole(), result, playedAt: new Date().toISOString() });
@@ -223,7 +337,7 @@
     broadcast();
   });
 
-  // ── Setup ───────────────────────────────────────────────────────────────────
+  // ── New match form ───────────────────────────────────────────────────────────
 
   document.getElementById('startBtn').addEventListener('click', () => {
     const code  = document.getElementById('inCode').value.trim().toLowerCase().replace(/\s+/g, '-');
@@ -247,6 +361,8 @@
 
     startPeer(code);
   });
+
+  // ── Peer ─────────────────────────────────────────────────────────────────────
 
   function startPeer(code) {
     peer = new Peer(`matchplay-${code}`, { debug: 0 });
@@ -281,6 +397,10 @@
       }
     });
   }
+
+  // ── Init ─────────────────────────────────────────────────────────────────────
+
+  renderSavedSessions();
 </script>
 </body>
 </html>

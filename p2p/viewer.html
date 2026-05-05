@@ -121,8 +121,6 @@
   let currentCode = '';
   let retryTimer = null;
 
-  // ── Helpers ─────────────────────────────────────────────────────────────────
-
   function scoreText(v) {
     return v === 0 ? 'AS' : v > 0 ? `${v} UP` : `${Math.abs(v)} DOWN`;
   }
@@ -133,16 +131,14 @@
   }
 
   function setStatus(cls, text) {
-    document.getElementById('statusDot').className = `dot ${cls}`;
+    document.getElementById('statusDot').className    = `dot ${cls}`;
     document.getElementById('statusText').textContent = text;
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
-
   function renderState(state) {
     document.getElementById('matchTitle').textContent = state.title || '';
-    document.getElementById('refName').textContent   = state.referencePlayer || '—';
-    document.getElementById('oppName').textContent   = state.opponent || '—';
+    document.getElementById('refName').textContent    = state.referencePlayer || '—';
+    document.getElementById('oppName').textContent    = state.opponent || '—';
 
     let score = 0;
     const holes = [...(state.holes || [])].sort((a, b) => a.hole - b.hole).map(h => {
@@ -154,8 +150,8 @@
     document.getElementById('scoreDisplay').textContent = scoreText(last ? last.score : 0);
     document.getElementById('scoreStatus').textContent  = last ? `Prochain trou ${last.hole + 1}` : 'Départ';
 
-    const tbody   = document.getElementById('historyBody');
-    const empty   = document.getElementById('emptyHistory');
+    const tbody = document.getElementById('historyBody');
+    const empty = document.getElementById('emptyHistory');
 
     if (holes.length) {
       empty.classList.add('hidden');
@@ -172,8 +168,6 @@
     }
   }
 
-  // ── Connection ──────────────────────────────────────────────────────────────
-
   function connect(code) {
     currentCode = code;
     clearTimeout(retryTimer);
@@ -184,9 +178,7 @@
       setStatus('wait', 'Recherche du marqueur…');
       conn = peer.connect(`matchplay-${code}`, { reliable: true });
 
-      conn.on('open', () => {
-        setStatus('on', `Connecté · ${code}`);
-      });
+      conn.on('open', () => setStatus('on', `Connecté · ${code}`));
 
       conn.on('data', (raw) => {
         try {
@@ -195,15 +187,8 @@
         } catch {}
       });
 
-      conn.on('close', () => {
-        setStatus('wait', 'Marqueur déconnecté — reconnexion dans 3s…');
-        scheduleReconnect();
-      });
-
-      conn.on('error', () => {
-        setStatus('err', 'Erreur — reconnexion dans 3s…');
-        scheduleReconnect();
-      });
+      conn.on('close', () => { setStatus('wait', 'Marqueur déconnecté — reconnexion dans 3s…'); scheduleReconnect(); });
+      conn.on('error', () => { setStatus('err',  'Erreur — reconnexion dans 3s…');              scheduleReconnect(); });
     });
 
     peer.on('error', (err) => {
@@ -217,19 +202,17 @@
   function scheduleReconnect() {
     clearTimeout(retryTimer);
     retryTimer = setTimeout(() => {
-      if (conn)  { try { conn.close();    } catch {} conn  = null; }
-      if (peer)  { try { peer.destroy();  } catch {} peer  = null; }
+      if (conn) { try { conn.close();   } catch {} conn  = null; }
+      if (peer) { try { peer.destroy(); } catch {} peer  = null; }
       connect(currentCode);
     }, 3000);
   }
 
   function disconnect() {
     clearTimeout(retryTimer);
-    if (conn)  { try { conn.close();   } catch {} conn  = null; }
-    if (peer)  { try { peer.destroy(); } catch {} peer  = null; }
+    if (conn) { try { conn.close();   } catch {} conn  = null; }
+    if (peer) { try { peer.destroy(); } catch {} peer  = null; }
   }
-
-  // ── UI events ───────────────────────────────────────────────────────────────
 
   document.getElementById('connectBtn').addEventListener('click', () => {
     const code  = document.getElementById('inCode').value.trim().toLowerCase().replace(/\s+/g, '-');
