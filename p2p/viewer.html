@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Live — Matchplay P2P</title>
+  <style>
+    :root {
+      --bg: #f6f7f5; --card: #fff; --text: #172018; --muted: #6b746b;
+      --line: #e5e9e3; --accent: #1f6f4a; --accent-soft: #e9f3ee;
+      --danger: #a33a32; --danger-soft: #f7e9e7; --neutral: #eef0ed;
+      --shadow: 0 10px 30px rgba(25,35,25,.08); --radius: 22px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100dvh; }
+    .page { width: min(480px, 100%); margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 28px; letter-spacing: -0.05em; line-height: 1; margin-bottom: 6px; }
+    .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; margin-bottom: 16px; }
+    label { display: block; font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .06em; }
+    input { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fbfcfb; color: var(--text); font: inherit; font-size: 16px; margin-bottom: 14px; outline: none; }
+    input:focus { border-color: rgba(31,111,74,.5); box-shadow: 0 0 0 4px var(--accent-soft); }
+    button { font: inherit; cursor: pointer; border: none; transition: transform .08s ease; }
+    button:active { transform: scale(0.97); }
+    .btn { display: block; width: 100%; padding: 14px; border-radius: 999px; font-weight: 700; font-size: 15px; text-align: center; }
+    .btn-primary { background: var(--text); color: white; }
+    .status-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font-size: 13px; margin-bottom: 16px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; transition: background .3s; }
+    .dot.on   { background: var(--accent); }
+    .dot.wait { background: #f0a500; animation: pulse 1.4s ease infinite; }
+    .dot.err  { background: var(--danger); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .match-head { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: start; margin-bottom: 16px; }
+    .match-title { color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+    .players { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px; font-size: 18px; font-weight: 800; letter-spacing: -0.03em; }
+    .players span { color: var(--muted); font-weight: 500; font-size: 13px; }
+    .scorebox { text-align: right; }
+    .current-score { font-size: 48px; font-weight: 900; line-height: .95; letter-spacing: -0.06em; }
+    .score-status { margin-top: 6px; font-size: 12px; color: var(--muted); font-weight: 650; }
+    .section-label { color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; }
+    .history-wrap { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    th, td { padding: 10px 8px; text-align: center; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+    td:first-child { text-align: left; font-weight: 700; color: var(--muted); }
+    .mark { display: inline-flex; min-width: 28px; justify-content: center; padding: 4px 6px; border-radius: 999px; font-weight: 800; font-size: 12px; }
+    .mark.win   { background: var(--accent-soft); color: var(--accent); }
+    .mark.loss  { background: var(--danger-soft); color: var(--danger); }
+    .mark.halve { background: var(--neutral); color: var(--text); }
+    .ts { display: block; font-size: 10px; font-weight: 400; color: var(--muted); margin-top: 1px; }
+    .empty { color: var(--muted); font-size: 14px; padding: 12px 0; }
+    .back-btn { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; font-size: 13px; color: var(--muted); cursor: pointer; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<main class="page">
+
+  <!-- ── Connect ── -->
+  <div id="connectScreen">
+    <h1>Live</h1>
+    <p class="subtitle">Entrez le code du match pour suivre les scores en direct.</p>
+    <div class="card">
+      <label for="inCode">Code du match</label>
+      <input id="inCode" type="text" placeholder="Ex: finale-a" autocomplete="off" spellcheck="false"/>
+      <div id="connectError" style="color:var(--danger);font-size:14px;margin-bottom:10px;display:none"></div>
+      <button class="btn btn-primary" id="connectBtn">Suivre</button>
+    </div>
+  </div>
+
+  <!-- ── Live view ── -->
+  <div id="liveScreen" class="hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <h1>Live</h1>
+      <button class="back-btn" id="backBtn">← Quitter</button>
+    </div>
+
+    <div class="status-bar">
+      <div class="dot wait" id="statusDot"></div>
+      <span id="statusText">Connexion en cours…</span>
+    </div>
+
+    <div class="card">
+      <div class="match-head">
+        <div>
+          <div class="match-title" id="matchTitle"></div>
+          <div class="players">
+            <strong id="refName">—</strong>
+            <span>vs</span>
+            <strong id="oppName">—</strong>
+          </div>
+        </div>
+        <div class="scorebox">
+          <div class="current-score" id="scoreDisplay">—</div>
+          <div class="score-status" id="scoreStatus"></div>
+        </div>
+      </div>
+
+      <div class="section-label">Historique</div>
+      <div class="history-wrap">
+        <table>
+          <thead><tr><th>Trou</th><th>Résultat</th><th>Score</th></tr></thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+        <div id="emptyHistory" class="empty">En attente du premier trou…</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+  const RESULT = {
+    win:   { short: 'G', delta:  1, cls: 'win'   },
+    halve: { short: '½', delta:  0, cls: 'halve' },
+    loss:  { short: 'P', delta: -1, cls: 'loss'  },
+  };
+
+  let peer = null;
+  let conn = null;
+  let currentCode = '';
+  let retryTimer = null;
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+
+  function scoreText(v) {
+    return v === 0 ? 'AS' : v > 0 ? `${v} UP` : `${Math.abs(v)} DOWN`;
+  }
+
+  function formatTime(iso) {
+    if (!iso) return '';
+    return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function setStatus(cls, text) {
+    document.getElementById('statusDot').className = `dot ${cls}`;
+    document.getElementById('statusText').textContent = text;
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+
+  function renderState(state) {
+    document.getElementById('matchTitle').textContent = state.title || '';
+    document.getElementById('refName').textContent   = state.referencePlayer || '—';
+    document.getElementById('oppName').textContent   = state.opponent || '—';
+
+    let score = 0;
+    const holes = [...(state.holes || [])].sort((a, b) => a.hole - b.hole).map(h => {
+      score += RESULT[h.result]?.delta || 0;
+      return { ...h, score };
+    });
+
+    const last = holes[holes.length - 1];
+    document.getElementById('scoreDisplay').textContent = scoreText(last ? last.score : 0);
+    document.getElementById('scoreStatus').textContent  = last ? `Prochain trou ${last.hole + 1}` : 'Départ';
+
+    const tbody   = document.getElementById('historyBody');
+    const empty   = document.getElementById('emptyHistory');
+
+    if (holes.length) {
+      empty.classList.add('hidden');
+      tbody.innerHTML = holes.map(h => `
+        <tr>
+          <td>${h.hole}<span class="ts">${formatTime(h.playedAt)}</span></td>
+          <td><span class="mark ${RESULT[h.result].cls}">${RESULT[h.result].short}</span></td>
+          <td>${scoreText(h.score)}</td>
+        </tr>
+      `).join('');
+    } else {
+      empty.classList.remove('hidden');
+      tbody.innerHTML = '';
+    }
+  }
+
+  // ── Connection ──────────────────────────────────────────────────────────────
+
+  function connect(code) {
+    currentCode = code;
+    clearTimeout(retryTimer);
+
+    peer = new Peer({ debug: 0 });
+
+    peer.on('open', () => {
+      setStatus('wait', 'Recherche du marqueur…');
+      conn = peer.connect(`matchplay-${code}`, { reliable: true });
+
+      conn.on('open', () => {
+        setStatus('on', `Connecté · ${code}`);
+      });
+
+      conn.on('data', (raw) => {
+        try {
+          const msg = JSON.parse(raw);
+          if (msg.type === 'state') renderState(msg.state);
+        } catch {}
+      });
+
+      conn.on('close', () => {
+        setStatus('wait', 'Marqueur déconnecté — reconnexion dans 3s…');
+        scheduleReconnect();
+      });
+
+      conn.on('error', () => {
+        setStatus('err', 'Erreur — reconnexion dans 3s…');
+        scheduleReconnect();
+      });
+    });
+
+    peer.on('error', (err) => {
+      if (err.type === 'peer-unavailable') {
+        setStatus('wait', 'Marqueur introuvable — nouvelle tentative dans 3s…');
+        scheduleReconnect();
+      }
+    });
+  }
+
+  function scheduleReconnect() {
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(() => {
+      if (conn)  { try { conn.close();    } catch {} conn  = null; }
+      if (peer)  { try { peer.destroy();  } catch {} peer  = null; }
+      connect(currentCode);
+    }, 3000);
+  }
+
+  function disconnect() {
+    clearTimeout(retryTimer);
+    if (conn)  { try { conn.close();   } catch {} conn  = null; }
+    if (peer)  { try { peer.destroy(); } catch {} peer  = null; }
+  }
+
+  // ── UI events ───────────────────────────────────────────────────────────────
+
+  document.getElementById('connectBtn').addEventListener('click', () => {
+    const code  = document.getElementById('inCode').value.trim().toLowerCase().replace(/\s+/g, '-');
+    const errEl = document.getElementById('connectError');
+    if (!code) { errEl.textContent = 'Entrez un code de match.'; errEl.style.display = 'block'; return; }
+    errEl.style.display = 'none';
+    document.getElementById('connectScreen').classList.add('hidden');
+    document.getElementById('liveScreen').classList.remove('hidden');
+    connect(code);
+  });
+
+  document.getElementById('inCode').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('connectBtn').click();
+  });
+
+  document.getElementById('backBtn').addEventListener('click', () => {
+    disconnect();
+    document.getElementById('liveScreen').classList.add('hidden');
+    document.getElementById('connectScreen').classList.remove('hidden');
+    document.getElementById('inCode').value = '';
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Marqueur — Matchplay P2P</title>
+  <style>
+    :root {
+      --bg: #f6f7f5; --card: #fff; --text: #172018; --muted: #6b746b;
+      --line: #e5e9e3; --accent: #1f6f4a; --accent-soft: #e9f3ee;
+      --danger: #a33a32; --danger-soft: #f7e9e7; --neutral: #eef0ed;
+      --shadow: 0 10px 30px rgba(25,35,25,.08); --radius: 22px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100dvh; }
+    .page { width: min(480px, 100%); margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 28px; letter-spacing: -0.05em; line-height: 1; margin-bottom: 6px; }
+    .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; margin-bottom: 16px; }
+    label { display: block; font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .06em; }
+    input { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fbfcfb; color: var(--text); font: inherit; font-size: 16px; margin-bottom: 14px; outline: none; }
+    input:focus { border-color: rgba(31,111,74,.5); box-shadow: 0 0 0 4px var(--accent-soft); }
+    button { font: inherit; cursor: pointer; border: none; transition: transform .08s ease; }
+    button:active { transform: scale(0.97); }
+    .btn { display: block; width: 100%; padding: 14px; border-radius: 999px; font-weight: 700; font-size: 15px; text-align: center; }
+    .btn-primary { background: var(--text); color: white; }
+    .btn-subtle { background: var(--card); border: 1px solid var(--line); color: var(--muted); font-size: 13px; padding: 10px 14px; border-radius: 999px; }
+    .status-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font-size: 13px; margin-bottom: 16px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+    .dot.on { background: var(--accent); }
+    .dot.wait { background: #f0a500; }
+    .players-row { display: flex; align-items: baseline; gap: 8px; font-size: 18px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 6px; }
+    .players-row span { color: var(--muted); font-weight: 500; font-size: 14px; }
+    .score-big { font-size: 48px; font-weight: 900; letter-spacing: -0.06em; line-height: 1; margin-bottom: 4px; }
+    .score-detail { color: var(--muted); font-size: 13px; font-weight: 600; margin-bottom: 20px; }
+    .big-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+    .big-btn { min-height: 88px; border-radius: 18px; border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-weight: 850; font-size: 17px; background: white; color: var(--text); }
+    .big-btn small { font-size: 11px; font-weight: 600; color: var(--muted); }
+    .big-btn.win  { background: var(--accent-soft); border-color: rgba(31,111,74,.24); color: var(--accent); }
+    .big-btn.loss { background: var(--danger-soft); border-color: rgba(163,58,50,.22); color: var(--danger); }
+    .big-btn.halve { background: var(--neutral); }
+    .section-label { color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; }
+    .history-wrap { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    th, td { padding: 10px 8px; text-align: center; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+    td:first-child { text-align: left; font-weight: 700; color: var(--muted); }
+    .mark { display: inline-flex; min-width: 28px; justify-content: center; padding: 4px 6px; border-radius: 999px; font-weight: 800; font-size: 12px; }
+    .mark.win   { background: var(--accent-soft); color: var(--accent); }
+    .mark.loss  { background: var(--danger-soft); color: var(--danger); }
+    .mark.halve { background: var(--neutral); color: var(--text); }
+    .ts { display: block; font-size: 10px; font-weight: 400; color: var(--muted); margin-top: 1px; }
+    .code-badge { display: inline-block; background: var(--accent-soft); color: var(--accent); border-radius: 8px; padding: 3px 10px; font-size: 13px; font-weight: 800; letter-spacing: .05em; font-family: monospace; }
+    .error-msg { color: var(--danger); font-size: 14px; margin-bottom: 10px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<main class="page">
+
+  <!-- ── Setup ── -->
+  <div id="setupScreen">
+    <h1>Marqueur</h1>
+    <p class="subtitle">Saisissez les informations du match pour démarrer.</p>
+    <div class="card">
+      <label for="inCode">Code du match</label>
+      <input id="inCode" type="text" placeholder="Ex: finale-a" autocomplete="off" spellcheck="false"/>
+      <label for="inRef">Joueur de référence</label>
+      <input id="inRef" type="text" placeholder="Nom du joueur"/>
+      <label for="inOpp">Adversaire</label>
+      <input id="inOpp" type="text" placeholder="Nom de l'adversaire"/>
+      <label for="inTitle">Titre (optionnel)</label>
+      <input id="inTitle" type="text" placeholder="Ex: Demi-finale"/>
+      <div id="setupError" class="error-msg hidden"></div>
+      <button class="btn btn-primary" id="startBtn">Démarrer</button>
+    </div>
+  </div>
+
+  <!-- ── Recorder ── -->
+  <div id="recordScreen" class="hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <div>
+        <h1 id="matchTitleDisplay"></h1>
+        <div style="margin-top:4px"><span class="code-badge" id="codeDisplay"></span></div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <div class="dot wait" id="statusDot"></div>
+      <span id="statusText">En attente de spectateurs…</span>
+    </div>
+
+    <div class="card">
+      <div class="players-row">
+        <strong id="refDisplay"></strong><span>vs</span><strong id="oppDisplay"></strong>
+      </div>
+      <div class="score-big" id="scoreDisplay">AS</div>
+      <div class="score-detail" id="scoreDetail">Départ · prochain trou 1</div>
+
+      <div class="big-grid">
+        <button class="big-btn win"   id="btnWin">  Gagné<small id="winLabel">trou 1</small></button>
+        <button class="big-btn halve" id="btnHalve"> ½<small>partagé</small></button>
+        <button class="big-btn loss"  id="btnLoss">  Perdu<small id="lossLabel">trou 1</small></button>
+      </div>
+
+      <div class="section-label">Historique</div>
+      <div class="history-wrap">
+        <table>
+          <thead><tr><th>Trou</th><th>Résultat</th><th>Score</th></tr></thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:14px">
+        <button class="btn btn-subtle" id="resetBtn">Réinitialiser le match</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+  const RESULT = {
+    win:   { short: 'G', delta:  1, cls: 'win'   },
+    halve: { short: '½', delta:  0, cls: 'halve' },
+    loss:  { short: 'P', delta: -1, cls: 'loss'  },
+  };
+
+  let peer = null;
+  const conns = new Set();
+  let state = { title: '', referencePlayer: '', opponent: '', holes: [] };
+  let currentCode = '';
+
+  // ── Persistence ────────────────────────────────────────────────────────────
+
+  const storageKey = (code) => `matchplay-p2p-${code}`;
+
+  function saveLocal() {
+    localStorage.setItem(storageKey(currentCode), JSON.stringify(state));
+  }
+
+  function loadLocal(code) {
+    try { return JSON.parse(localStorage.getItem(storageKey(code))); } catch { return null; }
+  }
+
+  // ── Score logic ─────────────────────────────────────────────────────────────
+
+  function enrichHoles() {
+    let score = 0;
+    return [...state.holes].sort((a, b) => a.hole - b.hole).map(h => {
+      score += RESULT[h.result]?.delta || 0;
+      return { ...h, score };
+    });
+  }
+
+  function scoreText(v) {
+    return v === 0 ? 'AS' : v > 0 ? `${v} UP` : `${Math.abs(v)} DOWN`;
+  }
+
+  function nextHole() {
+    return state.holes.length ? Math.max(...state.holes.map(h => h.hole)) + 1 : 1;
+  }
+
+  function formatTime(iso) {
+    if (!iso) return '';
+    return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+
+  function render() {
+    const holes = enrichHoles();
+    const last  = holes[holes.length - 1];
+    const score = last ? last.score : 0;
+    const next  = nextHole();
+
+    document.getElementById('scoreDisplay').textContent  = scoreText(score);
+    document.getElementById('scoreDetail').textContent   = `Prochain trou ${next}`;
+    document.getElementById('winLabel').textContent      = `trou ${next}`;
+    document.getElementById('lossLabel').textContent     = `trou ${next}`;
+
+    document.getElementById('historyBody').innerHTML = holes.map(h => `
+      <tr>
+        <td>${h.hole}<span class="ts">${formatTime(h.playedAt)}</span></td>
+        <td><span class="mark ${RESULT[h.result].cls}">${RESULT[h.result].short}</span></td>
+        <td>${scoreText(h.score)}</td>
+      </tr>
+    `).join('');
+  }
+
+  function updateStatus() {
+    const n = conns.size;
+    document.getElementById('statusDot').className = `dot ${n > 0 ? 'on' : 'wait'}`;
+    document.getElementById('statusText').textContent = n === 0
+      ? 'En attente de spectateurs…'
+      : `${n} spectateur${n > 1 ? 's' : ''} connecté${n > 1 ? 's' : ''}`;
+  }
+
+  // ── Broadcast ───────────────────────────────────────────────────────────────
+
+  function broadcast() {
+    const msg = JSON.stringify({ type: 'state', state });
+    for (const conn of conns) { try { conn.send(msg); } catch {} }
+  }
+
+  // ── Actions ─────────────────────────────────────────────────────────────────
+
+  function recordHole(result) {
+    state.holes.push({ hole: nextHole(), result, playedAt: new Date().toISOString() });
+    saveLocal();
+    render();
+    broadcast();
+  }
+
+  document.getElementById('btnWin').addEventListener('click',   () => recordHole('win'));
+  document.getElementById('btnHalve').addEventListener('click', () => recordHole('halve'));
+  document.getElementById('btnLoss').addEventListener('click',  () => recordHole('loss'));
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    if (!confirm('Réinitialiser tous les trous ?')) return;
+    state.holes = [];
+    saveLocal();
+    render();
+    broadcast();
+  });
+
+  // ── Setup ───────────────────────────────────────────────────────────────────
+
+  document.getElementById('startBtn').addEventListener('click', () => {
+    const code  = document.getElementById('inCode').value.trim().toLowerCase().replace(/\s+/g, '-');
+    const ref   = document.getElementById('inRef').value.trim();
+    const opp   = document.getElementById('inOpp').value.trim();
+    const title = document.getElementById('inTitle').value.trim() || `${ref} vs ${opp}`;
+    const errEl = document.getElementById('setupError');
+
+    if (!code) { errEl.textContent = 'Entrez un code de match.'; errEl.classList.remove('hidden'); return; }
+    if (!ref || !opp) { errEl.textContent = 'Entrez les deux noms de joueurs.'; errEl.classList.remove('hidden'); return; }
+    errEl.classList.add('hidden');
+
+    currentCode = code;
+    const saved = loadLocal(code);
+    if (saved && confirm(`Partie existante trouvée pour "${code}" (${saved.referencePlayer} vs ${saved.opponent}). Reprendre ?`)) {
+      state = saved;
+    } else {
+      state = { title, referencePlayer: ref, opponent: opp, holes: [] };
+      saveLocal();
+    }
+
+    startPeer(code);
+  });
+
+  function startPeer(code) {
+    peer = new Peer(`matchplay-${code}`, { debug: 0 });
+
+    peer.on('open', () => {
+      document.getElementById('setupScreen').classList.add('hidden');
+      document.getElementById('recordScreen').classList.remove('hidden');
+      document.getElementById('matchTitleDisplay').textContent = state.title;
+      document.getElementById('codeDisplay').textContent       = code;
+      document.getElementById('refDisplay').textContent        = state.referencePlayer;
+      document.getElementById('oppDisplay').textContent        = state.opponent;
+      render();
+    });
+
+    peer.on('connection', (conn) => {
+      conn.on('open', () => {
+        conns.add(conn);
+        conn.send(JSON.stringify({ type: 'state', state }));
+        updateStatus();
+      });
+      conn.on('close', () => { conns.delete(conn); updateStatus(); });
+      conn.on('error', () => { conns.delete(conn); updateStatus(); });
+    });
+
+    peer.on('error', (err) => {
+      if (err.type === 'unavailable-id') {
+        const errEl = document.getElementById('setupError');
+        errEl.textContent = 'Ce code est déjà utilisé par un autre marqueur.';
+        errEl.classList.remove('hidden');
+        document.getElementById('setupScreen').classList.remove('hidden');
+        document.getElementById('recordScreen').classList.add('hidden');
+      }
+    });
+  }
+</script>
+</body>
+</html>
