@@ -229,8 +229,12 @@
       btn.addEventListener('click', () => {
         matchType = btn.dataset.type;
         document.querySelectorAll('.type-btn').forEach((b) => b.classList.toggle('active', b === btn));
-        document.getElementById('opponentGroup').style.display = matchType === 'strokeplay' ? 'none' : '';
-        document.getElementById('refPlayerLabel').textContent = matchType === 'strokeplay' ? 'Joueur' : 'Joueur de référence';
+        const isStrokeplay = matchType === 'strokeplay';
+        const opponentInput = document.getElementById('opponent');
+        document.getElementById('opponentGroup').style.display = isStrokeplay ? 'none' : '';
+        document.getElementById('refPlayerLabel').textContent = isStrokeplay ? 'Joueur' : 'Joueur de référence';
+        opponentInput.disabled = isStrokeplay;
+        if (isStrokeplay) opponentInput.value = '';
       });
     });
 
@@ -267,7 +271,7 @@
         <div class="match-admin-item${m.hidden ? ' hidden-match' : ''}" data-token="${escToken(m.token || '')}">
           <div class="match-admin-info">
             <a class="match-admin-title" href="${APP_BASE}/match/${escToken(m.token || '')}" style="text-decoration:none;color:inherit">${esc(m.title || 'Match')}</a>
-            <div class="match-admin-players">${esc(m.referencePlayer)} vs ${esc(m.opponent)}
+            <div class="match-admin-players">${esc(m.type === 'strokeplay' ? m.referencePlayer : `${m.referencePlayer} vs ${m.opponent}`)}
               ${m.holesCount ? ` · ${m.holesCount} trou${m.holesCount > 1 ? 's' : ''}` : ''}
             </div>
           </div>
@@ -324,7 +328,7 @@
         code: document.getElementById('sessionCode').value.trim(),
         title: document.getElementById('matchTitle').value.trim(),
         referencePlayer: document.getElementById('refPlayer').value.trim(),
-        opponent: document.getElementById('opponent').value.trim(),
+        opponent: matchType === 'matchplay' ? document.getElementById('opponent').value.trim() : '',
         type: matchType,
       };
 
