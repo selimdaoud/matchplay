@@ -6,6 +6,7 @@ const BASE = `${APP_BASE}/api/match/${token}`;
 const state = {
   match: null,
   editing: null,
+  pendingScore: 4,
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -13,6 +14,19 @@ const $ = (sel) => document.querySelector(sel);
 async function fetchMatch() {
   const res = await fetch(BASE, { cache: 'no-store' });
   if (!res.ok) throw new Error('Match introuvable.');
+  state.match = await res.json();
+}
+
+async function putStroke(holeNumber, score) {
+  const res = await fetch(`${BASE}/strokes/${holeNumber}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ score }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || 'Erreur de sauvegarde.');
+  }
   state.match = await res.json();
 }
 
@@ -42,6 +56,87 @@ async function putMatch(fields) {
   state.match = await res.json();
 }
 
+function renderStrokeHistory(strokes) {
+  if (!strokes.length) return '<div class="empty">Aucun trou saisi.</div>';
+  const total = strokes.reduce((s, h) => s + h.score, 0);
+  return `
+    <div class="history-wrap">
+      <table>
+        <tr><th>Trou</th><th>Coups</th></tr>
+        ${strokes.map((h) => `
+          <tr>
+            <td>${h.hole}${h.recordedAt ? `<br><span class="ts">${formatTime(h.recordedAt)}</span>` : ''}</td>
+            <td class="result-cell editable" data-action="edit-stroke" data-hole="${h.hole}" data-score="${h.score}">
+              ${h.score}
+            </td>
+          </tr>
+        `).join('')}
+        <tr>
+          <td><strong>Total</strong></td>
+          <td><strong>${total}</strong></td>
+        </tr>
+      </table>
+    </div>
+  `;
+}
+
+function renderStrokeplay() {
+  const match = state.match;
+  const strokes = [...(match.strokes || [])].sort((a, b) => a.hole - b.hole);
+  const status = strokeStatus(match);
+  const ref = escapeHtml(match.referencePlayer || 'Joueur');
+
+  $('title').textContent = `${match.title || 'Partie'} — Matchplay Live`;
+  $('#subtitle').textContent = match.referencePlayer || '…';
+
+  const inputSection = status.finished ? `
+    <div class="finished-banner">
+      Partie terminée · ${status.total} coups
+      <div style="font-size:13px;font-weight:600;margin-top:4px;color:var(--accent)">
+        Corrigez un trou dans l'historique si nécessaire.
+      </div>
+    </div>
+  ` : `
+    <div class="stroke-input">
+      <div class="stroke-hole-label">Trou ${status.nextHole}</div>
+      <div class="stroke-counter">
+        <button class="stroke-adj" data-action="stroke-dec">−</button>
+        <span class="stroke-value" id="strokeValueDisplay">${state.pendingScore}</span>
+        <button class="stroke-adj" data-action="stroke-inc">+</button>
+      </div>
+      <button class="btn primary full-width-btn" data-action="confirm-stroke" data-hole="${status.nextHole}">
+        Enregistrer trou ${status.nextHole}
+      </button>
+    </div>
+  `;
+
+  $('#matchSection').innerHTML = `
+    <article class="card">
+      <div class="match-head">
+        <div>
+          <div class="match-title">${escapeHtml(match.title || 'Partie')}</div>
+          <div class="players"><strong>${ref}</strong></div>
+        </div>
+        <div class="scorebox">
+          <div class="current-score">${status.total}</div>
+          <div class="status">${escapeHtml(status.detail)}</div>
+        </div>
+      </div>
+      ${inputSection}
+      <div class="expanded-section">
+        <div class="edit-names" style="grid-template-columns:1fr">
+          <input value="${ref}" placeholder="Nom du joueur" data-field="referencePlayer">
+        </div>
+        <div class="section-title">
+          <span>Historique</span>
+          <span>${strokes.length ? `${strokes.length} trou${strokes.length > 1 ? 's' : ''}` : ''}</span>
+        </div>
+        ${renderStrokeHistory(strokes)}
+      </div>
+    </article>
+  `;
+}
+
 function renderHistory(match, holes) {
   if (!holes.length) return '<div class="empty">Aucun trou saisi.</div>';
   const ref = escapeHtml(match.referencePlayer || 'Référence');
@@ -66,6 +161,7 @@ function renderHistory(match, holes) {
 function render() {
   const match = state.match;
   if (!match) return;
+  if (match.type === 'strokeplay') { renderStrokeplay(); return; }
 
   const holes = enrichHoles(match);
   const status = matchStatus(match);
@@ -144,7 +240,24 @@ function openEditModal(holeNumber) {
 function closeModal() {
   $('#modalBackdrop').classList.remove('open');
   $('#modalBackdrop').setAttribute('aria-hidden', 'true');
+  $('#modalConfirm').style.display = 'none';
   state.editing = null;
+}
+
+function openStrokeEditModal(holeNumber, currentScore) {
+  state.editing = { holeNumber, type: 'stroke', score: currentScore };
+  $('#modalTitle').textContent = `Corriger trou ${holeNumber}`;
+  $('#modalText').textContent = `Score actuel : ${currentScore} coup${currentScore > 1 ? 's' : ''}`;
+  $('#modalChoices').innerHTML = `
+    <div class="stroke-edit-counter">
+      <button class="stroke-adj" data-action="modal-stroke-dec">−</button>
+      <span class="stroke-value" id="modalStrokeValue">${currentScore}</span>
+      <button class="stroke-adj" data-action="modal-stroke-inc">+</button>
+    </div>
+  `;
+  $('#modalConfirm').style.display = '';
+  $('#modalBackdrop').classList.add('open');
+  $('#modalBackdrop').setAttribute('aria-hidden', 'false');
 }
 
 $('#matchSection').addEventListener('click', async (event) => {
@@ -165,6 +278,32 @@ $('#matchSection').addEventListener('click', async (event) => {
   if (action === 'edit-hole') {
     openEditModal(Number(target.dataset.hole));
   }
+
+  if (action === 'stroke-dec') {
+    state.pendingScore = Math.max(1, state.pendingScore - 1);
+    const el = document.getElementById('strokeValueDisplay');
+    if (el) el.textContent = state.pendingScore;
+  }
+
+  if (action === 'stroke-inc') {
+    state.pendingScore = Math.min(20, state.pendingScore + 1);
+    const el = document.getElementById('strokeValueDisplay');
+    if (el) el.textContent = state.pendingScore;
+  }
+
+  if (action === 'confirm-stroke') {
+    try {
+      await putStroke(Number(target.dataset.hole), state.pendingScore);
+      state.pendingScore = 4;
+      render();
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  if (action === 'edit-stroke') {
+    openStrokeEditModal(Number(target.dataset.hole), Number(target.dataset.score));
+  }
 });
 
 $('#matchSection').addEventListener('change', async (event) => {
@@ -179,10 +318,37 @@ $('#matchSection').addEventListener('change', async (event) => {
 });
 
 $('#modalChoices').addEventListener('click', async (event) => {
+  if (!state.editing) return;
+
+  if (state.editing.type === 'stroke') {
+    const adj = event.target.closest('[data-action]');
+    if (!adj) return;
+    if (adj.dataset.action === 'modal-stroke-dec') {
+      state.editing.score = Math.max(1, state.editing.score - 1);
+      document.getElementById('modalStrokeValue').textContent = state.editing.score;
+    }
+    if (adj.dataset.action === 'modal-stroke-inc') {
+      state.editing.score = Math.min(20, state.editing.score + 1);
+      document.getElementById('modalStrokeValue').textContent = state.editing.score;
+    }
+    return;
+  }
+
   const target = event.target.closest('[data-action="modal-set"]');
-  if (!target || !state.editing) return;
+  if (!target) return;
   try {
     await putHole(state.editing.holeNumber, target.dataset.result);
+    closeModal();
+    render();
+  } catch (e) {
+    alert(e.message);
+  }
+});
+
+$('#modalConfirm').addEventListener('click', async () => {
+  if (!state.editing || state.editing.type !== 'stroke') return;
+  try {
+    await putStroke(state.editing.holeNumber, state.editing.score);
     closeModal();
     render();
   } catch (e) {

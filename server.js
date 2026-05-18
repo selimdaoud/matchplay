@@ -31,15 +31,19 @@ app.get('/new', (_req, res) => {
 
 app.post('/new', async (req, res) => {
   try {
-    const { code, title, referencePlayer, opponent } = req.body || {};
+    const { code, title, referencePlayer, opponent, type } = req.body || {};
     if (!checkSessionCode(code)) {
       return res.status(401).json({ error: 'Code de session incorrect.' });
     }
-    if (!title || !referencePlayer || !opponent) {
-      return res.status(400).json({ error: 'Titre, joueur de référence et adversaire sont requis.' });
+    const matchType = type === 'strokeplay' ? 'strokeplay' : 'matchplay';
+    if (!title || !referencePlayer) {
+      return res.status(400).json({ error: 'Titre et joueur de référence sont requis.' });
+    }
+    if (matchType === 'matchplay' && !opponent) {
+      return res.status(400).json({ error: 'L\'adversaire est requis pour un match matchplay.' });
     }
     const session = db.getActiveSession();
-    const match = db.createMatch(session.id, { title, referencePlayer, opponent });
+    const match = db.createMatch(session.id, { title, referencePlayer, opponent: opponent || '', type: matchType });
     const recorderUrl = `${req.protocol}://${req.get('host')}${BASE_PATH}/match/${match.token}`;
     const qrDataUrl = await QRCode.toDataURL(recorderUrl);
     res.json({ token: match.token, recorderUrl, qrDataUrl });
@@ -99,6 +103,29 @@ app.put('/api/match/:token/holes/:hole', (req, res) => {
   } catch (error) {
     console.error('[PUT /api/match/:token/holes/:hole]', error);
     res.status(500).json({ error: 'Impossible de sauvegarder le trou.' });
+  }
+});
+
+app.put('/api/match/:token/strokes/:hole', (req, res) => {
+  try {
+    const match = db.getMatchByToken(req.params.token);
+    if (!match) return res.status(404).json({ error: 'Match introuvable.' });
+    if (match.type !== 'strokeplay') return res.status(400).json({ error: 'Ce match n\'est pas en strokeplay.' });
+
+    const holeNumber = Number(req.params.hole);
+    if (!Number.isInteger(holeNumber) || holeNumber < 1 || holeNumber > 99) {
+      return res.status(400).json({ error: 'Numéro de trou invalide.' });
+    }
+
+    const { score } = req.body || {};
+    if (!Number.isInteger(score) || score < 1 || score > 20) {
+      return res.status(400).json({ error: 'Score invalide (1–20).' });
+    }
+
+    res.json(db.setStroke(match.id, holeNumber, score));
+  } catch (error) {
+    console.error('[PUT /api/match/:token/strokes/:hole]', error);
+    res.status(500).json({ error: 'Impossible de sauvegarder le score.' });
   }
 });
 

@@ -18,7 +18,7 @@ async function fetchLive() {
   state.matches = data.matches || [];
 }
 
-function renderHistory(match, holes) {
+function renderMatchplayHistory(match, holes) {
   if (!holes.length) return '<div class="empty">Aucun trou saisi.</div>';
   const ref = escapeHtml(match.referencePlayer || 'Référence');
   return `
@@ -39,14 +39,59 @@ function renderHistory(match, holes) {
   `;
 }
 
+function renderStrokeHistory(strokes) {
+  if (!strokes.length) return '<div class="empty">Aucun trou saisi.</div>';
+  const total = strokes.reduce((s, h) => s + h.score, 0);
+  return `
+    <div class="history-wrap">
+      <table>
+        <tr><th>Trou</th><th>Coups</th></tr>
+        ${strokes.map((h) => `
+          <tr>
+            <td>${h.hole}${h.recordedAt ? `<br><span class="ts">${formatTime(h.recordedAt)}</span>` : ''}</td>
+            <td>${h.score}</td>
+          </tr>
+        `).join('')}
+        <tr>
+          <td><strong>Total</strong></td>
+          <td><strong>${total}</strong></td>
+        </tr>
+      </table>
+    </div>
+  `;
+}
+
 function renderMatchCard(match, clickable) {
+  const attrs = clickable ? `data-action="open-match" data-id="${escapeHtml(match.id)}"` : '';
+  const cls = `card${clickable ? ' match-list-card' : ''}`;
+
+  if (match.type === 'strokeplay') {
+    const status = strokeStatus(match);
+    const strokes = [...(match.strokes || [])].sort((a, b) => a.hole - b.hole);
+    const ref = escapeHtml(match.referencePlayer || 'Joueur');
+    return `
+      <article class="${cls}" ${attrs}>
+        <div class="match-head">
+          <div>
+            <div class="match-title">${escapeHtml(match.title || 'Partie')}</div>
+            <div class="players"><strong>${ref}</strong></div>
+          </div>
+          <div class="scorebox">
+            <div class="current-score">${status.total}</div>
+            <div class="status">${escapeHtml(status.detail)}</div>
+          </div>
+        </div>
+        ${!clickable ? renderStrokeHistory(strokes) : ''}
+      </article>
+    `;
+  }
+
   const holes = enrichHoles(match);
   const status = matchStatus(match);
   const ref = escapeHtml(match.referencePlayer || 'Référence');
   const opp = escapeHtml(match.opponent || 'Adversaire');
-
   return `
-    <article class="card${clickable ? ' match-list-card' : ''}" ${clickable ? `data-action="open-match" data-id="${escapeHtml(match.id)}"` : ''}>
+    <article class="${cls}" ${attrs}>
       <div class="match-head">
         <div>
           <div class="match-title">${escapeHtml(match.title || 'Match')}</div>
@@ -57,12 +102,19 @@ function renderMatchCard(match, clickable) {
           <div class="status">${escapeHtml(status.detail)}</div>
         </div>
       </div>
-      ${!clickable ? renderHistory(match, holes) : ''}
+      ${!clickable ? renderMatchplayHistory(match, holes) : ''}
     </article>
   `;
 }
 
+function liveTitle(matches) {
+  const types = new Set(matches.map((m) => m.type || 'matchplay'));
+  if (types.size > 1) return 'Golf Live';
+  return types.has('strokeplay') ? 'Strokeplay Live' : 'Matchplay Live';
+}
+
 function renderList() {
+  $('h1').textContent = liveTitle(state.matches);
   $('#subtitle').textContent = `${state.matches.length} match${state.matches.length > 1 ? 's' : ''} en cours`;
   if (!state.matches.length) {
     $('#content').innerHTML = '<div class="card"><p style="color:var(--muted)">Aucun match en cours.</p></div>';
@@ -75,7 +127,10 @@ function renderDetail() {
   const match = state.matches.find((m) => m.id === state.detailId);
   if (!match) { showList(); return; }
 
-  $('#subtitle').textContent = `${match.referencePlayer || '…'} vs ${match.opponent || '…'}`;
+  $('h1').textContent = match.type === 'strokeplay' ? 'Strokeplay Live' : 'Matchplay Live';
+  $('#subtitle').textContent = match.type === 'strokeplay'
+    ? (match.referencePlayer || '…')
+    : `${match.referencePlayer || '…'} vs ${match.opponent || '…'}`;
   $('#content').innerHTML = `
     <button class="back-btn" data-action="back">← Tous les matchs</button>
     ${renderMatchCard(match, false)}

@@ -22,6 +22,7 @@ db.exec(`
     title           TEXT NOT NULL DEFAULT '',
     referencePlayer TEXT NOT NULL DEFAULT '',
     opponent        TEXT NOT NULL DEFAULT '',
+    type            TEXT NOT NULL DEFAULT 'matchplay',
     hidden          INTEGER NOT NULL DEFAULT 0,
     createdAt       TEXT NOT NULL
   );
@@ -34,12 +35,24 @@ db.exec(`
     recordedAt   TEXT NOT NULL,
     supersededBy INTEGER REFERENCES holes(id)
   );
+
+  CREATE TABLE IF NOT EXISTS strokes (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    matchId      TEXT NOT NULL REFERENCES matches(id),
+    hole         INTEGER NOT NULL,
+    score        INTEGER NOT NULL,
+    recordedAt   TEXT NOT NULL,
+    supersededBy INTEGER REFERENCES strokes(id)
+  );
 `);
 
-// Migration: add hidden column to existing DBs
+// Runtime migrations for existing DBs
 const cols = db.prepare('PRAGMA table_info(matches)').all();
 if (!cols.find((c) => c.name === 'hidden')) {
   db.exec('ALTER TABLE matches ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0');
+}
+if (!cols.find((c) => c.name === 'type')) {
+  db.exec("ALTER TABLE matches ADD COLUMN type TEXT NOT NULL DEFAULT 'matchplay'");
 }
 
 const stmts = {
@@ -47,9 +60,9 @@ const stmts = {
   insertSession:         db.prepare('INSERT INTO sessions (id, name, date, code, updatedAt) VALUES (?, ?, ?, ?, ?)'),
   getMatchByToken:       db.prepare('SELECT * FROM matches WHERE token = ?'),
   getMatchById:          db.prepare('SELECT * FROM matches WHERE id = ?'),
-  getMatchesBySession:   db.prepare('SELECT id, title, referencePlayer, opponent FROM matches WHERE sessionId = ? AND hidden = 0 ORDER BY createdAt'),
-  getAllMatchesBySession: db.prepare('SELECT id, token, title, referencePlayer, opponent, hidden FROM matches WHERE sessionId = ? ORDER BY createdAt'),
-  insertMatch:           db.prepare('INSERT INTO matches (id, sessionId, token, title, referencePlayer, opponent, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)'),
+  getMatchesBySession:   db.prepare('SELECT id, title, referencePlayer, opponent, type FROM matches WHERE sessionId = ? AND hidden = 0 ORDER BY createdAt'),
+  getAllMatchesBySession: db.prepare('SELECT id, token, title, referencePlayer, opponent, hidden, type FROM matches WHERE sessionId = ? ORDER BY createdAt'),
+  insertMatch:           db.prepare('INSERT INTO matches (id, sessionId, token, title, referencePlayer, opponent, type, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'),
   updateMatch:           db.prepare('UPDATE matches SET title = ?, referencePlayer = ?, opponent = ? WHERE id = ?'),
   setHidden:             db.prepare('UPDATE matches SET hidden = ? WHERE id = ?'),
   getCurrentHoles:       db.prepare('SELECT hole, result, recordedAt FROM holes WHERE matchId = ? AND supersededBy IS NULL ORDER BY hole'),
@@ -57,6 +70,10 @@ const stmts = {
   findCurrentHole:       db.prepare('SELECT id FROM holes WHERE matchId = ? AND hole = ? AND supersededBy IS NULL'),
   insertHole:            db.prepare('INSERT INTO holes (matchId, hole, result, recordedAt) VALUES (?, ?, ?, ?)'),
   supersede:             db.prepare('UPDATE holes SET supersededBy = ? WHERE id = ?'),
+  getCurrentStrokes:     db.prepare('SELECT hole, score, recordedAt FROM strokes WHERE matchId = ? AND supersededBy IS NULL ORDER BY hole'),
+  findCurrentStroke:     db.prepare('SELECT id FROM strokes WHERE matchId = ? AND hole = ? AND supersededBy IS NULL'),
+  insertStroke:          db.prepare('INSERT INTO strokes (matchId, hole, score, recordedAt) VALUES (?, ?, ?, ?)'),
+  supersedeStroke:       db.prepare('UPDATE strokes SET supersededBy = ? WHERE id = ?'),
 };
 
 function getActiveSession() {
@@ -83,11 +100,12 @@ function generateToken() {
   return token;
 }
 
-function createMatch(sessionId, { title, referencePlayer, opponent }) {
+function createMatch(sessionId, { title, referencePlayer, opponent, type }) {
   const id = `match-${Date.now()}`;
   const token = generateToken();
   const now = new Date().toISOString();
-  stmts.insertMatch.run(id, sessionId, token, title || '', referencePlayer || '', opponent || '', now);
+  const matchType = type === 'strokeplay' ? 'strokeplay' : 'matchplay';
+  stmts.insertMatch.run(id, sessionId, token, title || '', referencePlayer || '', opponent || '', matchType, now);
   return stmts.getMatchByToken.get(token);
 }
 
@@ -114,9 +132,22 @@ function setMatchHidden(matchId, hidden) {
 function readMatchState(matchId) {
   const match = stmts.getMatchById.get(matchId);
   if (!match) return null;
+  if (match.type === 'strokeplay') {
+    const strokes = stmts.getCurrentStrokes.all(matchId);
+    return { id: match.id, token: match.token, title: match.title, referencePlayer: match.referencePlayer, type: 'strokeplay', strokes };
+  }
   const holes = stmts.getCurrentHoles.all(matchId);
-  return { id: match.id, token: match.token, title: match.title, referencePlayer: match.referencePlayer, opponent: match.opponent, holes };
+  return { id: match.id, token: match.token, title: match.title, referencePlayer: match.referencePlayer, opponent: match.opponent, type: 'matchplay', holes };
 }
+
+const setStroke = db.transaction((matchId, holeNumber, score) => {
+  const existing = stmts.findCurrentStroke.get(matchId, holeNumber);
+  const now = new Date().toISOString();
+  stmts.insertStroke.run(matchId, holeNumber, score, now);
+  const newId = db.prepare('SELECT last_insert_rowid() AS id').get().id;
+  if (existing) stmts.supersedeStroke.run(newId, existing.id);
+  return readMatchState(matchId);
+});
 
 const setHole = db.transaction((matchId, holeNumber, result) => {
   const existing = stmts.findCurrentHole.get(matchId, holeNumber);
@@ -130,7 +161,11 @@ const setHole = db.transaction((matchId, holeNumber, result) => {
 function readLiveState(sessionId) {
   const matches = stmts.getMatchesBySession.all(sessionId);
   for (const match of matches) {
-    match.holes = stmts.getCurrentHoles.all(match.id);
+    if (match.type === 'strokeplay') {
+      match.strokes = stmts.getCurrentStrokes.all(match.id);
+    } else {
+      match.holes = stmts.getCurrentHoles.all(match.id);
+    }
   }
   return matches;
 }
@@ -138,7 +173,11 @@ function readLiveState(sessionId) {
 function getAllMatchesForSession(sessionId) {
   const matches = stmts.getAllMatchesBySession.all(sessionId);
   for (const match of matches) {
-    match.holesCount = stmts.getCurrentHoles.all(match.id).length;
+    if (match.type === 'strokeplay') {
+      match.holesCount = stmts.getCurrentStrokes.all(match.id).length;
+    } else {
+      match.holesCount = stmts.getCurrentHoles.all(match.id).length;
+    }
   }
   return matches;
 }
@@ -156,6 +195,7 @@ module.exports = {
   setMatchHidden,
   readMatchState,
   setHole,
+  setStroke,
   readLiveState,
   getAllMatchesForSession,
   readAuditLog,

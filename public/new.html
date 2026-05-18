@@ -109,6 +109,27 @@
       cursor: pointer;
       color: var(--accent);
     }
+
+    .type-selector {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .type-btn {
+      padding: 11px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: var(--card);
+      font-size: 14px;
+      font-weight: 650;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .type-btn.active {
+      background: var(--text);
+      color: white;
+      border-color: var(--text);
+    }
   </style>
 </head>
 <body>
@@ -130,14 +151,21 @@
         <input type="password" id="sessionCode" placeholder="Code annoncé par l'organisateur" autocomplete="off" />
       </div>
       <div class="form-group">
-        <label for="matchTitle">Titre du match</label>
+        <label>Type de partie</label>
+        <div class="type-selector">
+          <button type="button" class="type-btn active" data-type="matchplay">Matchplay</button>
+          <button type="button" class="type-btn" data-type="strokeplay">Strokeplay</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="matchTitle">Titre</label>
         <input type="text" id="matchTitle" placeholder="Ex: Demi-finale" />
       </div>
       <div class="form-group">
-        <label for="refPlayer">Joueur de référence</label>
+        <label for="refPlayer" id="refPlayerLabel">Joueur de référence</label>
         <input type="text" id="refPlayer" placeholder="Nom du joueur" />
       </div>
-      <div class="form-group">
+      <div class="form-group" id="opponentGroup">
         <label for="opponent">Adversaire</label>
         <input type="text" id="opponent" placeholder="Nom de l'adversaire" />
       </div>
@@ -195,6 +223,16 @@
 
     let recorderUrl = '';
     let matchList = [];
+    let matchType = 'matchplay';
+
+    document.querySelectorAll('.type-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        matchType = btn.dataset.type;
+        document.querySelectorAll('.type-btn').forEach((b) => b.classList.toggle('active', b === btn));
+        document.getElementById('opponentGroup').style.display = matchType === 'strokeplay' ? 'none' : '';
+        document.getElementById('refPlayerLabel').textContent = matchType === 'strokeplay' ? 'Joueur' : 'Joueur de référence';
+      });
+    });
 
     document.getElementById('liveLink').href = APP_BASE + '/live';
     document.getElementById('anotherMatch').href = APP_BASE + '/new';
@@ -287,6 +325,7 @@
         title: document.getElementById('matchTitle').value.trim(),
         referencePlayer: document.getElementById('refPlayer').value.trim(),
         opponent: document.getElementById('opponent').value.trim(),
+        type: matchType,
       };
 
       try {

@@ -41,6 +41,22 @@ function enrichHoles(match) {
   });
 }
 
+function strokeStatus(match) {
+  const strokes = [...(match.strokes || [])].sort((a, b) => a.hole - b.hole);
+  if (!strokes.length) return { total: '—', detail: 'Départ', finished: false, nextHole: 1 };
+  const total = strokes.reduce((s, h) => s + h.score, 0);
+  const lastHole = strokes[strokes.length - 1].hole;
+  const finished = lastHole >= 18;
+  return {
+    total: String(total),
+    detail: finished
+      ? `Terminé · ${total} coup${total > 1 ? 's' : ''}`
+      : `${strokes.length} trou${strokes.length > 1 ? 's' : ''} joué${strokes.length > 1 ? 's' : ''}`,
+    finished,
+    nextHole: lastHole + 1,
+  };
+}
+
 function matchStatus(match) {
   const holes = enrichHoles(match);
   if (!holes.length) return { score: 'AS', detail: 'Départ', finished: false, nextHole: 1 };

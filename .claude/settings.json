@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm start *)"
+      "Bash(npm start *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(wait)",
+      "Bash(git checkout *)",
+      "Bash(mkdir -p /Users/sdaoud/CODE/MATCH-PLAY/golf-matchplay-live/p2p)",
+      "Bash(kill %1)",
+      "Bash(SESSION_CODE=esery npm start)"
+    ],
+    "additionalDirectories": [
+      "/Users/sdaoud/CODE/MATCH-PLAY/golf-matchplay-live"
     ]
   }
 }
