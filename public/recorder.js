@@ -6,6 +6,7 @@ const BASE = `${APP_BASE}/api/match/${token}`;
 const state = {
   match: null,
   editing: null,
+  pendingHole: null,
   pendingScore: 4,
 };
 
@@ -56,28 +57,101 @@ async function putMatch(fields) {
   state.match = await res.json();
 }
 
-function renderStrokeHistory(strokes) {
+function defaultStrokeScore(match, holeNumber) {
+  const hole = courseHole(match, holeNumber);
+  if (hole && Number.isFinite(hole.par)) return Math.max(1, Math.min(20, hole.par));
+  return 4;
+}
+
+function syncPendingStrokeScore(match, holeNumber) {
+  if (state.pendingHole === holeNumber) return;
+  state.pendingHole = holeNumber;
+  state.pendingScore = defaultStrokeScore(match, holeNumber);
+}
+
+function renderCoursePanel(match, holeNumber, score = null) {
+  if (!match.course || match.course === 'none') return '';
+  const hole = courseHole(match, holeNumber);
+  const title = `${escapeHtml(courseName(match))} · Trou ${holeNumber}`;
+  if (!hole) {
+    return `
+      <div class="course-panel">
+        <div class="course-panel-title">${title}</div>
+        <div class="course-empty">Données du trou non renseignées.</div>
+      </div>
+    `;
+  }
+
+  const scored = Number.isFinite(score);
+  return `
+    <div class="course-panel">
+      <div class="course-panel-title">${title}</div>
+      <div class="course-metrics">
+        <div><span>Par</span><strong>${hole.par}</strong></div>
+        <div><span>Moyenne</span><strong>${hole.averageScore.toFixed(2)}</strong></div>
+        ${scored ? `<div><span>Vs par</span><strong>${formatSigned(score - hole.par)}</strong></div>` : ''}
+        ${scored ? `<div><span>Vs moy.</span><strong>${formatSigned(score - hole.averageScore)}</strong></div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function renderStrokeSummary(match) {
+  if (!hasCourseData(match)) return '';
+  const totals = strokeCourseTotals(match);
+  if (!totals.par) return '';
+  return `
+    <div class="status">
+      Par ${formatSigned(totals.vsPar)} · Moy. ${formatSigned(totals.vsAverage)}
+    </div>
+  `;
+}
+
+function renderStrokeCourseCells(match, stroke) {
+  const hole = courseHole(match, stroke.hole);
+  if (!hole) return '<td>—</td>';
+  return `
+    <td>${formatSigned(stroke.score - hole.averageScore)}</td>
+  `;
+}
+
+function renderStrokeHistory(match, strokes) {
   if (!strokes.length) return '<div class="empty">Aucun trou saisi.</div>';
   const total = strokes.reduce((s, h) => s + h.score, 0);
+  const showCourse = hasCourseData(match);
+  const totals = strokeCourseTotals(match);
   return `
     <div class="history-wrap">
       <table>
-        <tr><th>Trou</th><th>Coups</th></tr>
+        <tr>
+          <th>Trou</th><th>Coups</th>
+          ${showCourse ? '<th>Vs moy.</th>' : ''}
+        </tr>
         ${strokes.map((h) => `
           <tr>
-            <td>${h.hole}${h.recordedAt ? `<br><span class="ts">${formatTime(h.recordedAt)}</span>` : ''}</td>
+            <td>${renderStrokeHoleLabel(match, h)}${h.recordedAt ? `<br><span class="ts">${formatTime(h.recordedAt)}</span>` : ''}</td>
             <td class="result-cell editable" data-action="edit-stroke" data-hole="${h.hole}" data-score="${h.score}">
               ${h.score}
             </td>
+            ${showCourse ? renderStrokeCourseCells(match, h) : ''}
           </tr>
         `).join('')}
         <tr>
           <td><strong>Total</strong></td>
           <td><strong>${total}</strong></td>
+          ${showCourse ? `
+            <td><strong>${totals.average ? formatSigned(totals.vsAverage) : '—'}</strong></td>
+          ` : ''}
         </tr>
       </table>
     </div>
   `;
+}
+
+function renderStrokeHoleLabel(match, stroke) {
+  const hole = courseHole(match, stroke.hole);
+  if (!hole) return stroke.hole;
+  return `${stroke.hole} <span class="hole-par">(par ${hole.par})</span>`;
 }
 
 function renderStrokeplay() {
@@ -85,6 +159,7 @@ function renderStrokeplay() {
   const strokes = [...(match.strokes || [])].sort((a, b) => a.hole - b.hole);
   const status = strokeStatus(match);
   const ref = escapeHtml(match.referencePlayer || 'Joueur');
+  if (!status.finished) syncPendingStrokeScore(match, status.nextHole);
 
   $('title').textContent = `${match.title || 'Partie'} — Matchplay Live`;
   $('#subtitle').textContent = match.referencePlayer || '…';
@@ -99,6 +174,7 @@ function renderStrokeplay() {
   ` : `
     <div class="stroke-input">
       <div class="stroke-hole-label">Trou ${status.nextHole}</div>
+      ${renderCoursePanel(match, status.nextHole, state.pendingScore)}
       <div class="stroke-counter">
         <button class="stroke-adj" data-action="stroke-dec">−</button>
         <span class="stroke-value" id="strokeValueDisplay">${state.pendingScore}</span>
@@ -120,6 +196,7 @@ function renderStrokeplay() {
         <div class="scorebox">
           <div class="current-score">${status.total}</div>
           <div class="status">${escapeHtml(status.detail)}</div>
+          ${renderStrokeSummary(match)}
         </div>
       </div>
       ${inputSection}
@@ -131,7 +208,7 @@ function renderStrokeplay() {
           <span>Historique</span>
           <span>${strokes.length ? `${strokes.length} trou${strokes.length > 1 ? 's' : ''}` : ''}</span>
         </div>
-        ${renderStrokeHistory(strokes)}
+        ${renderStrokeHistory(match, strokes)}
       </div>
     </article>
   `;
@@ -179,6 +256,7 @@ function render() {
       </div>
     </div>
   ` : `
+    ${renderCoursePanel(match, status.nextHole)}
     <div class="big-choice-grid">
       <button class="big-choice win" data-action="set-hole" data-hole="${status.nextHole}" data-result="win">
         Gagné<small>trou ${status.nextHole}</small>
@@ -281,20 +359,18 @@ $('#matchSection').addEventListener('click', async (event) => {
 
   if (action === 'stroke-dec') {
     state.pendingScore = Math.max(1, state.pendingScore - 1);
-    const el = document.getElementById('strokeValueDisplay');
-    if (el) el.textContent = state.pendingScore;
+    render();
   }
 
   if (action === 'stroke-inc') {
     state.pendingScore = Math.min(20, state.pendingScore + 1);
-    const el = document.getElementById('strokeValueDisplay');
-    if (el) el.textContent = state.pendingScore;
+    render();
   }
 
   if (action === 'confirm-stroke') {
     try {
       await putStroke(Number(target.dataset.hole), state.pendingScore);
-      state.pendingScore = 4;
+      state.pendingHole = null;
       render();
     } catch (e) {
       alert(e.message);

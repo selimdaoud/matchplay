@@ -23,6 +23,7 @@ db.exec(`
     referencePlayer TEXT NOT NULL DEFAULT '',
     opponent        TEXT NOT NULL DEFAULT '',
     type            TEXT NOT NULL DEFAULT 'matchplay',
+    course          TEXT NOT NULL DEFAULT 'none',
     hidden          INTEGER NOT NULL DEFAULT 0,
     createdAt       TEXT NOT NULL
   );
@@ -54,15 +55,18 @@ if (!cols.find((c) => c.name === 'hidden')) {
 if (!cols.find((c) => c.name === 'type')) {
   db.exec("ALTER TABLE matches ADD COLUMN type TEXT NOT NULL DEFAULT 'matchplay'");
 }
+if (!cols.find((c) => c.name === 'course')) {
+  db.exec("ALTER TABLE matches ADD COLUMN course TEXT NOT NULL DEFAULT 'none'");
+}
 
 const stmts = {
   getLatestSession:      db.prepare('SELECT * FROM sessions ORDER BY date DESC, rowid DESC LIMIT 1'),
   insertSession:         db.prepare('INSERT INTO sessions (id, name, date, code, updatedAt) VALUES (?, ?, ?, ?, ?)'),
   getMatchByToken:       db.prepare('SELECT * FROM matches WHERE token = ?'),
   getMatchById:          db.prepare('SELECT * FROM matches WHERE id = ?'),
-  getMatchesBySession:   db.prepare('SELECT id, title, referencePlayer, opponent, type FROM matches WHERE sessionId = ? AND hidden = 0 ORDER BY createdAt'),
-  getAllMatchesBySession: db.prepare('SELECT id, token, title, referencePlayer, opponent, hidden, type FROM matches WHERE sessionId = ? ORDER BY createdAt'),
-  insertMatch:           db.prepare('INSERT INTO matches (id, sessionId, token, title, referencePlayer, opponent, type, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'),
+  getMatchesBySession:   db.prepare('SELECT id, title, referencePlayer, opponent, type, course FROM matches WHERE sessionId = ? AND hidden = 0 ORDER BY createdAt'),
+  getAllMatchesBySession: db.prepare('SELECT id, token, title, referencePlayer, opponent, hidden, type, course FROM matches WHERE sessionId = ? ORDER BY createdAt'),
+  insertMatch:           db.prepare('INSERT INTO matches (id, sessionId, token, title, referencePlayer, opponent, type, course, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'),
   updateMatch:           db.prepare('UPDATE matches SET title = ?, referencePlayer = ?, opponent = ? WHERE id = ?'),
   setHidden:             db.prepare('UPDATE matches SET hidden = ? WHERE id = ?'),
   getCurrentHoles:       db.prepare('SELECT hole, result, recordedAt FROM holes WHERE matchId = ? AND supersededBy IS NULL ORDER BY hole'),
@@ -100,12 +104,12 @@ function generateToken() {
   return token;
 }
 
-function createMatch(sessionId, { title, referencePlayer, opponent, type }) {
+function createMatch(sessionId, { title, referencePlayer, opponent, type, course }) {
   const id = `match-${Date.now()}`;
   const token = generateToken();
   const now = new Date().toISOString();
   const matchType = type === 'strokeplay' ? 'strokeplay' : 'matchplay';
-  stmts.insertMatch.run(id, sessionId, token, title || '', referencePlayer || '', opponent || '', matchType, now);
+  stmts.insertMatch.run(id, sessionId, token, title || '', referencePlayer || '', opponent || '', matchType, course || 'none', now);
   return stmts.getMatchByToken.get(token);
 }
 
@@ -134,10 +138,10 @@ function readMatchState(matchId) {
   if (!match) return null;
   if (match.type === 'strokeplay') {
     const strokes = stmts.getCurrentStrokes.all(matchId);
-    return { id: match.id, token: match.token, title: match.title, referencePlayer: match.referencePlayer, type: 'strokeplay', strokes };
+    return { id: match.id, token: match.token, title: match.title, referencePlayer: match.referencePlayer, type: 'strokeplay', course: match.course || 'none', strokes };
   }
   const holes = stmts.getCurrentHoles.all(matchId);
-  return { id: match.id, token: match.token, title: match.title, referencePlayer: match.referencePlayer, opponent: match.opponent, type: 'matchplay', holes };
+  return { id: match.id, token: match.token, title: match.title, referencePlayer: match.referencePlayer, opponent: match.opponent, type: 'matchplay', course: match.course || 'none', holes };
 }
 
 const setStroke = db.transaction((matchId, holeNumber, score) => {

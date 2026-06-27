@@ -158,6 +158,14 @@
         </div>
       </div>
       <div class="form-group">
+        <label for="courseSelect">Parcours</label>
+        <select id="courseSelect">
+          <option value="none">None</option>
+          <option value="bossey">Bossey</option>
+          <option value="esery">Esery</option>
+        </select>
+      </div>
+      <div class="form-group">
         <label for="matchTitle">Titre</label>
         <input type="text" id="matchTitle" placeholder="Ex: Demi-finale" />
       </div>
@@ -224,6 +232,11 @@
     let recorderUrl = '';
     let matchList = [];
     let matchType = 'matchplay';
+    const fallbackCourses = [
+      { id: 'none', name: 'None' },
+      { id: 'bossey', name: 'Bossey' },
+      { id: 'esery', name: 'Esery' },
+    ];
 
     document.querySelectorAll('.type-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -240,6 +253,22 @@
 
     document.getElementById('liveLink').href = APP_BASE + '/live';
     document.getElementById('anotherMatch').href = APP_BASE + '/new';
+
+    async function loadCourses() {
+      try {
+        const res = await fetch(APP_BASE + '/api/courses');
+        if (!res.ok) throw new Error('courses');
+        renderCourses(await res.json());
+      } catch (_) {
+        renderCourses(fallbackCourses);
+      }
+    }
+
+    function renderCourses(courses) {
+      document.getElementById('courseSelect').innerHTML = courses.map((course) => (
+        `<option value="${escAttr(course.id)}">${esc(course.name)}</option>`
+      )).join('');
+    }
 
     // ── Match list ─────────────────────────────────────────────────────────────
 
@@ -272,6 +301,7 @@
           <div class="match-admin-info">
             <a class="match-admin-title" href="${APP_BASE}/match/${escToken(m.token || '')}" style="text-decoration:none;color:inherit">${esc(m.title || 'Match')}</a>
             <div class="match-admin-players">${esc(m.type === 'strokeplay' ? m.referencePlayer : `${m.referencePlayer} vs ${m.opponent}`)}
+              ${m.course && m.course !== 'none' ? ` · ${esc(courseName(m.course))}` : ''}
               ${m.holesCount ? ` · ${m.holesCount} trou${m.holesCount > 1 ? 's' : ''}` : ''}
             </div>
           </div>
@@ -286,7 +316,11 @@
     function esc(v) {
       return String(v || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
+    function escAttr(v) { return esc(v).replace(/'/g, '&#039;'); }
     function escToken(v) { return String(v).replace(/[^a-f0-9]/g, ''); }
+    function courseName(courseId) {
+      return ({ bossey: 'Bossey', esery: 'Esery' })[courseId] || 'None';
+    }
 
     document.getElementById('matchAdminItems').addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-action]');
@@ -330,6 +364,7 @@
         referencePlayer: document.getElementById('refPlayer').value.trim(),
         opponent: matchType === 'matchplay' ? document.getElementById('opponent').value.trim() : '',
         type: matchType,
+        course: document.getElementById('courseSelect').value,
       };
 
       try {
@@ -380,6 +415,8 @@
       }
       codeDebounce = setTimeout(loadMatchList, 600);
     });
+
+    loadCourses();
   </script>
 </body>
 </html>

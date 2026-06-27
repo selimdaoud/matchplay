@@ -18,6 +18,12 @@ function formatTime(iso) {
   return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatSigned(value) {
+  if (!Number.isFinite(value)) return '—';
+  if (value === 0) return 'E';
+  return `${value > 0 ? '+' : ''}${value.toFixed(1)}`;
+}
+
 function scoreText(value) {
   if (value === 0) return 'AS';
   return value > 0 ? `${value} UP` : `${Math.abs(value)} DOWN`;
@@ -55,6 +61,34 @@ function strokeStatus(match) {
     finished,
     nextHole: lastHole + 1,
   };
+}
+
+function courseHole(match, holeNumber) {
+  const holes = match.courseData?.holes || [];
+  return holes.find((hole) => hole.hole === holeNumber) || null;
+}
+
+function courseName(match) {
+  return match.courseData?.name || 'None';
+}
+
+function hasCourseData(match) {
+  return Boolean(match.course && match.course !== 'none' && (match.courseData?.holes || []).length);
+}
+
+function strokeCourseTotals(match) {
+  const strokes = [...(match.strokes || [])].sort((a, b) => a.hole - b.hole);
+  let score = 0;
+  let par = 0;
+  let average = 0;
+  for (const stroke of strokes) {
+    const hole = courseHole(match, stroke.hole);
+    if (!hole) continue;
+    score += stroke.score;
+    par += hole.par;
+    average += hole.averageScore;
+  }
+  return { score, par, average, vsPar: score - par, vsAverage: score - average };
 }
 
 function matchStatus(match) {

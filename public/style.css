@@ -70,7 +70,7 @@ h1 {
   margin: 12px 0 22px;
 }
 
-button, input {
+button, input, select {
   font: inherit;
 }
 
@@ -177,7 +177,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   margin: 14px 0 16px;
 }
 
-input {
+input, select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -188,7 +188,7 @@ input {
   font-size: 14px;
 }
 
-input:focus {
+input:focus, select:focus {
   border-color: rgba(31, 111, 74, .55);
   box-shadow: 0 0 0 4px var(--accent-soft);
 }
@@ -505,6 +505,63 @@ td.result-cell.editable:hover {
   margin: 10px 0;
 }
 
+.course-panel {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fbfcfb;
+  padding: 12px;
+}
+
+.course-panel-title {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.course-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.course-metrics div {
+  min-width: 0;
+  border-radius: 12px;
+  background: var(--neutral);
+  padding: 9px;
+  text-align: center;
+}
+
+.course-metrics span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.course-metrics strong {
+  display: block;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.course-empty {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.hole-par {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
 /* Strokeplay recorder */
 .stroke-input {
   margin: 14px 0 10px;
@@ -585,8 +642,9 @@ td.result-cell.editable:hover {
   .card { padding: 14px; border-radius: 18px; }
   .edit-names { grid-template-columns: 1fr; }
   .choice-grid { grid-template-columns: 1fr; }
+  .course-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .choice { min-height: 64px; font-size: 16px; }
-  input { font-size: 16px; }
+  input, select { font-size: 16px; }
   th, td { padding: 14px 9px; }
   .toolbar { flex-direction: column; }
   .toolbar .btn, .toolbar a.btn { width: 100%; text-align: center; padding: 14px; }

@@ -15,11 +15,13 @@ function listSessions() {
 function sessionSummary(session) {
   const matchCount = db.prepare('SELECT COUNT(*) AS n FROM matches WHERE sessionId = ?').get(session.id).n;
   const holeCount = db.prepare('SELECT COUNT(*) AS n FROM holes WHERE matchId IN (SELECT id FROM matches WHERE sessionId = ?)').get(session.id).n;
-  return { matchCount, holeCount };
+  const strokeCount = db.prepare('SELECT COUNT(*) AS n FROM strokes WHERE matchId IN (SELECT id FROM matches WHERE sessionId = ?)').get(session.id).n;
+  return { matchCount, holeCount, strokeCount };
 }
 
 const resetSession = db.transaction((sessionId) => {
   db.prepare('DELETE FROM holes WHERE matchId IN (SELECT id FROM matches WHERE sessionId = ?)').run(sessionId);
+  db.prepare('DELETE FROM strokes WHERE matchId IN (SELECT id FROM matches WHERE sessionId = ?)').run(sessionId);
   db.prepare('DELETE FROM matches WHERE sessionId = ?').run(sessionId);
   db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
 });
@@ -40,9 +42,9 @@ async function main() {
   console.log('Sessions disponibles :\n');
 
   sessions.forEach((s, i) => {
-    const { matchCount, holeCount } = sessionSummary(s);
+    const { matchCount, holeCount, strokeCount } = sessionSummary(s);
     console.log(`  [${i + 1}] ${s.date}  id: ${s.id}`);
-    console.log(`       ${matchCount} match(s), ${holeCount} trou(s) enregistré(s)\n`);
+    console.log(`       ${matchCount} match(s), ${holeCount} trou(s) matchplay, ${strokeCount} trou(s) strokeplay\n`);
   });
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -62,11 +64,11 @@ async function main() {
   }
 
   const session = sessions[choice - 1];
-  const { matchCount, holeCount } = sessionSummary(session);
+  const { matchCount, holeCount, strokeCount } = sessionSummary(session);
 
   console.log(`\n⚠️  ATTENTION — Cette opération est irréversible.\n`);
   console.log(`  Session : ${session.date} (${session.id})`);
-  console.log(`  Suppression : ${matchCount} match(s) + ${holeCount} entrée(s) audit\n`);
+  console.log(`  Suppression : ${matchCount} match(s) + ${holeCount} entrée(s) matchplay + ${strokeCount} entrée(s) strokeplay\n`);
 
   const confirm = await ask(rl, 'Confirmer ? Tapez "oui" pour continuer : ');
   rl.close();

@@ -3,13 +3,21 @@ const crypto = require('crypto');
 const path = require('path');
 const QRCode = require('qrcode');
 const db = require('./db');
+const courses = require('./courses');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const BASE_PATH = (process.env.BASE_PATH || '/matchplay').replace(/\/$/, '');
+const configuredBasePath = process.env.BASE_PATH === undefined ? '/matchplay' : process.env.BASE_PATH;
+const BASE_PATH = configuredBasePath.replace(/\/$/, '');
+
+function paths(routePath) {
+  if (!BASE_PATH) return [routePath];
+  return [routePath, `${BASE_PATH}${routePath}`];
+}
 
 app.use(express.json({ limit: '200kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+if (BASE_PATH) app.use(BASE_PATH, express.static(path.join(__dirname, 'public')));
 
 function checkSessionCode(provided) {
   const expected = process.env.SESSION_CODE;
@@ -25,17 +33,18 @@ function checkSessionCode(provided) {
 
 // ── Match creation ────────────────────────────────────────────────────────────
 
-app.get('/new', (_req, res) => {
+app.get(paths('/new'), (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'new.html'));
 });
 
-app.post('/new', async (req, res) => {
+app.post(paths('/new'), async (req, res) => {
   try {
-    const { code, title, referencePlayer, opponent, type } = req.body || {};
+    const { code, title, referencePlayer, opponent, type, course } = req.body || {};
     if (!checkSessionCode(code)) {
       return res.status(401).json({ error: 'Code de session incorrect.' });
     }
     const matchType = type === 'strokeplay' ? 'strokeplay' : 'matchplay';
+    const courseId = courses.normalizeCourseId(course || 'none');
     if (!title || !referencePlayer) {
       return res.status(400).json({ error: 'Titre et joueur de référence sont requis.' });
     }
@@ -43,7 +52,7 @@ app.post('/new', async (req, res) => {
       return res.status(400).json({ error: 'L\'adversaire est requis pour un match matchplay.' });
     }
     const session = db.getActiveSession();
-    const match = db.createMatch(session.id, { title, referencePlayer, opponent: opponent || '', type: matchType });
+    const match = db.createMatch(session.id, { title, referencePlayer, opponent: opponent || '', type: matchType, course: courseId });
     const recorderUrl = `${req.protocol}://${req.get('host')}${BASE_PATH}/match/${match.token}`;
     const qrDataUrl = await QRCode.toDataURL(recorderUrl);
     res.json({ token: match.token, recorderUrl, qrDataUrl });
@@ -55,36 +64,38 @@ app.post('/new', async (req, res) => {
 
 // ── Recorder ─────────────────────────────────────────────────────────────────
 
-app.get('/match/:token', (req, res) => {
+app.get(paths('/match/:token'), (req, res) => {
   const match = db.getMatchByToken(req.params.token);
   if (!match) return res.status(404).send('<h1>Match introuvable</h1>');
   res.sendFile(path.join(__dirname, 'public', 'recorder.html'));
 });
 
-app.get('/api/match/:token', (req, res) => {
+app.get(paths('/api/match/:token'), (req, res) => {
   try {
     const match = db.getMatchByToken(req.params.token);
     if (!match) return res.status(404).json({ error: 'Match introuvable.' });
-    res.json(db.readMatchState(match.id));
+    const state = db.readMatchState(match.id);
+    res.json({ ...state, courseData: courses.getCourse(state.course) });
   } catch (error) {
     console.error('[GET /api/match/:token]', error);
     res.status(500).json({ error: 'Impossible de charger le match.' });
   }
 });
 
-app.put('/api/match/:token', (req, res) => {
+app.put(paths('/api/match/:token'), (req, res) => {
   try {
     const match = db.getMatchByToken(req.params.token);
     if (!match) return res.status(404).json({ error: 'Match introuvable.' });
     const { title, referencePlayer, opponent } = req.body || {};
-    res.json(db.updateMatch(match.id, { title, referencePlayer, opponent }));
+    const state = db.updateMatch(match.id, { title, referencePlayer, opponent });
+    res.json({ ...state, courseData: courses.getCourse(state.course) });
   } catch (error) {
     console.error('[PUT /api/match/:token]', error);
     res.status(500).json({ error: 'Impossible de mettre à jour le match.' });
   }
 });
 
-app.put('/api/match/:token/holes/:hole', (req, res) => {
+app.put(paths('/api/match/:token/holes/:hole'), (req, res) => {
   try {
     const match = db.getMatchByToken(req.params.token);
     if (!match) return res.status(404).json({ error: 'Match introuvable.' });
@@ -99,14 +110,15 @@ app.put('/api/match/:token/holes/:hole', (req, res) => {
       return res.status(400).json({ error: 'Résultat invalide.' });
     }
 
-    res.json(db.setHole(match.id, holeNumber, result));
+    const state = db.setHole(match.id, holeNumber, result);
+    res.json({ ...state, courseData: courses.getCourse(state.course) });
   } catch (error) {
     console.error('[PUT /api/match/:token/holes/:hole]', error);
     res.status(500).json({ error: 'Impossible de sauvegarder le trou.' });
   }
 });
 
-app.put('/api/match/:token/strokes/:hole', (req, res) => {
+app.put(paths('/api/match/:token/strokes/:hole'), (req, res) => {
   try {
     const match = db.getMatchByToken(req.params.token);
     if (!match) return res.status(404).json({ error: 'Match introuvable.' });
@@ -122,7 +134,8 @@ app.put('/api/match/:token/strokes/:hole', (req, res) => {
       return res.status(400).json({ error: 'Score invalide (1–20).' });
     }
 
-    res.json(db.setStroke(match.id, holeNumber, score));
+    const state = db.setStroke(match.id, holeNumber, score);
+    res.json({ ...state, courseData: courses.getCourse(state.course) });
   } catch (error) {
     console.error('[PUT /api/match/:token/strokes/:hole]', error);
     res.status(500).json({ error: 'Impossible de sauvegarder le score.' });
@@ -131,7 +144,7 @@ app.put('/api/match/:token/strokes/:hole', (req, res) => {
 
 // ── Session match list (admin) ────────────────────────────────────────────────
 
-app.get('/api/session/matches', (req, res) => {
+app.get(paths('/api/session/matches'), (req, res) => {
   try {
     if (!checkSessionCode(req.query.code)) return res.status(401).json({ error: 'Code de session incorrect.' });
     const session = db.getActiveSession();
@@ -142,7 +155,11 @@ app.get('/api/session/matches', (req, res) => {
   }
 });
 
-app.post('/api/match/:token/hide', (req, res) => {
+app.get(paths('/api/courses'), (_req, res) => {
+  res.json(courses.getCourseOptions());
+});
+
+app.post(paths('/api/match/:token/hide'), (req, res) => {
   try {
     const { code } = req.body || {};
     if (!checkSessionCode(code)) return res.status(401).json({ error: 'Code de session incorrect.' });
@@ -156,7 +173,7 @@ app.post('/api/match/:token/hide', (req, res) => {
   }
 });
 
-app.post('/api/match/:token/unhide', (req, res) => {
+app.post(paths('/api/match/:token/unhide'), (req, res) => {
   try {
     const { code } = req.body || {};
     if (!checkSessionCode(code)) return res.status(401).json({ error: 'Code de session incorrect.' });
@@ -172,14 +189,17 @@ app.post('/api/match/:token/unhide', (req, res) => {
 
 // ── Live feed ─────────────────────────────────────────────────────────────────
 
-app.get(['/live', '/live/:matchId'], (_req, res) => {
+app.get([...paths('/live'), ...paths('/live/:matchId')], (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'live.html'));
 });
 
-app.get('/api/live', (_req, res) => {
+app.get(paths('/api/live'), (_req, res) => {
   try {
     const session = db.getActiveSession();
     const matches = db.readLiveState(session.id);
+    for (const match of matches) {
+      match.courseData = courses.getCourse(match.course);
+    }
     res.json({ session: { id: session.id, name: session.name, date: session.date }, matches });
   } catch (error) {
     console.error('[GET /api/live]', error);
@@ -189,13 +209,13 @@ app.get('/api/live', (_req, res) => {
 
 // ── Audit ─────────────────────────────────────────────────────────────────────
 
-app.get('/match/:token/audit', (req, res) => {
+app.get(paths('/match/:token/audit'), (req, res) => {
   const match = db.getMatchByToken(req.params.token);
   if (!match) return res.status(404).send('<h1>Match introuvable</h1>');
   res.sendFile(path.join(__dirname, 'public', 'audit.html'));
 });
 
-app.get('/api/match/:token/audit', (req, res) => {
+app.get(paths('/api/match/:token/audit'), (req, res) => {
   try {
     const match = db.getMatchByToken(req.params.token);
     if (!match) return res.status(404).json({ error: 'Match introuvable.' });
@@ -208,8 +228,12 @@ app.get('/api/match/:token/audit', (req, res) => {
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 
-app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'live.html')));
+app.get(paths('/'), (_req, res) => res.sendFile(path.join(__dirname, 'public', 'live.html')));
 
-app.listen(PORT, () => {
-  console.log(`Golf matchplay live app running on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Golf matchplay live app running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
