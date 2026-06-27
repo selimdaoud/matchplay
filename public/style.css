@@ -555,6 +555,84 @@ td.result-cell.editable:hover {
   font-size: 13px;
 }
 
+.hole-plan {
+  margin-top: 10px;
+  border-radius: 14px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+
+.hole-plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+
+.hole-plan-head span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.hole-plan-head strong {
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.hole-plan-body {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.hole-plan-body small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.hole-plan.plan-easy .hole-plan-head strong {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.hole-plan.plan-easy {
+  background: var(--accent-soft);
+  border-color: rgba(31, 111, 74, .24);
+}
+
+.hole-plan.plan-medium .hole-plan-head strong {
+  background: #fff3d8;
+  color: #7a5612;
+}
+
+.hole-plan.plan-medium {
+  background: #fff7e6;
+  border-color: rgba(122, 86, 18, .24);
+}
+
+.hole-plan.plan-hard .hole-plan-head strong {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.hole-plan.plan-hard {
+  background: var(--danger-soft);
+  border-color: rgba(163, 58, 50, .22);
+}
+
 .hole-par {
   color: var(--muted);
   font-size: 12px;

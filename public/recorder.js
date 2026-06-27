@@ -92,8 +92,59 @@ function renderCoursePanel(match, holeNumber, score = null) {
         ${scored ? `<div><span>Vs par</span><strong>${formatSigned(score - hole.par)}</strong></div>` : ''}
         ${scored ? `<div><span>Vs moy.</span><strong>${formatSigned(score - hole.averageScore)}</strong></div>` : ''}
       </div>
+      ${renderHolePlan(hole)}
     </div>
   `;
+}
+
+function renderHolePlan(hole) {
+  const difficulty = holeDifficulty(hole);
+  return `
+    <div class="hole-plan ${difficulty.className}">
+      <div class="hole-plan-head">
+        <span>Plan du trou</span>
+        <strong>${difficulty.label}</strong>
+      </div>
+      <div class="hole-plan-body">
+        <div>${escapeHtml(holeGoal(hole, difficulty))}</div>
+        <small>${escapeHtml(holeStrategy(hole, difficulty))}</small>
+      </div>
+    </div>
+  `;
+}
+
+function holeDifference(hole) {
+  if (Number.isFinite(hole.difference)) return hole.difference;
+  return hole.averageScore - hole.par;
+}
+
+function holeDifficulty(hole) {
+  const diff = holeDifference(hole);
+  if (diff < 0.65) return { className: 'plan-easy', label: 'Occasion' };
+  if (diff < 1.05) return { className: 'plan-medium', label: 'Exigeant' };
+  return { className: 'plan-hard', label: 'Prudence' };
+}
+
+function holeGoal(hole, difficulty) {
+  if (difficulty.className === 'plan-easy') return `Objectif : viser le par sur ce par ${hole.par}.`;
+  if (difficulty.className === 'plan-medium') return `Objectif : par excellent, bogey acceptable.`;
+  return `Objectif réaliste : bogey, éviter le gros score.`;
+}
+
+function holeStrategy(hole, difficulty) {
+  if (hole.par === 3) {
+    return difficulty.className === 'plan-hard'
+      ? 'Centre de green prioritaire. Ne pas chercher le drapeau si le coup parfait est nécessaire.'
+      : 'Viser une zone large du green. Le deux-putts est un bon résultat.';
+  }
+  if (hole.par === 5) {
+    return difficulty.className === 'plan-easy'
+      ? 'Avancer sans forcer. Attaquer seulement si le coup est vraiment confortable.'
+      : 'Découper le trou. Lay-up préférable si le deuxième coup impose un risque.';
+  }
+  return difficulty.className === 'plan-hard'
+    ? 'Mise en jeu contrôlée. Accepter un coup plus long au green pour garder la balle en jeu.'
+    : 'Chercher le fairway avant la distance. Le par vient surtout d’une approche simple.';
 }
 
 function renderStrokeSummary(match) {
