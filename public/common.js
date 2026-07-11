@@ -88,7 +88,7 @@ function strokeCourseTotals(match) {
     par += hole.par;
     average += hole.averageScore;
   }
-  return { score, par, average, vsPar: score - par, vsAverage: score - average };
+  return { score, par, average, vsPar: score - par, strokesGained: average - score };
 }
 
 function matchStatus(match) {

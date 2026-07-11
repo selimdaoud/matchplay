@@ -90,7 +90,7 @@ function renderCoursePanel(match, holeNumber, score = null) {
         <div><span>Par</span><strong>${hole.par}</strong></div>
         <div><span>Moyenne</span><strong>${hole.averageScore.toFixed(2)}</strong></div>
         ${scored ? `<div><span>Vs par</span><strong>${formatSigned(score - hole.par)}</strong></div>` : ''}
-        ${scored ? `<div><span>Vs moy.</span><strong>${formatSigned(score - hole.averageScore)}</strong></div>` : ''}
+        ${scored ? `<div><span>SG</span><strong>${formatSigned(hole.averageScore - score)}</strong></div>` : ''}
       </div>
       ${renderHolePlan(hole)}
     </div>
@@ -153,7 +153,7 @@ function renderStrokeSummary(match) {
   if (!totals.par) return '';
   return `
     <div class="status">
-      Par ${formatSigned(totals.vsPar)} · Moy. ${formatSigned(totals.vsAverage)}
+      Par ${formatSigned(totals.vsPar)} · SG ${formatSigned(totals.strokesGained)}
     </div>
   `;
 }
@@ -162,7 +162,7 @@ function renderStrokeCourseCells(match, stroke) {
   const hole = courseHole(match, stroke.hole);
   if (!hole) return '<td>—</td>';
   return `
-    <td>${formatSigned(stroke.score - hole.averageScore)}</td>
+    <td>${formatSigned(hole.averageScore - stroke.score)}</td>
   `;
 }
 
@@ -176,7 +176,7 @@ function renderStrokeHistory(match, strokes) {
       <table>
         <tr>
           <th>Trou</th><th>Coups</th>
-          ${showCourse ? '<th>Vs moy.</th>' : ''}
+          ${showCourse ? '<th>SG</th>' : ''}
         </tr>
         ${strokes.map((h) => `
           <tr>
@@ -191,7 +191,7 @@ function renderStrokeHistory(match, strokes) {
           <td><strong>Total</strong></td>
           <td><strong>${total}</strong></td>
           ${showCourse ? `
-            <td><strong>${totals.average ? formatSigned(totals.vsAverage) : '—'}</strong></td>
+            <td><strong>${totals.average ? formatSigned(totals.strokesGained) : '—'}</strong></td>
           ` : ''}
         </tr>
       </table>

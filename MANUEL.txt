@@ -230,4 +230,5 @@ LEXIQUE SCORES
   Départ    → aucun trou saisi
   Terminé   → 18 trous saisis
   Vs par    → score du joueur moins le par
-  Vs moy.   → score du joueur moins le score moyen du champ
+  SG        → Strokes Gained (coups gagnés) : score moyen du champ
+              moins le score du joueur. Positif = meilleur que la moyenne.
