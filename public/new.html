@@ -163,6 +163,7 @@
           <option value="none">None</option>
           <option value="bossey">Bossey</option>
           <option value="esery">Esery</option>
+          <option value="chamonix">Chamonix</option>
         </select>
       </div>
       <div class="form-group">
@@ -236,6 +237,7 @@
       { id: 'none', name: 'None' },
       { id: 'bossey', name: 'Bossey' },
       { id: 'esery', name: 'Esery' },
+      { id: 'chamonix', name: 'Chamonix' },
     ];
 
     document.querySelectorAll('.type-btn').forEach((btn) => {
@@ -319,7 +321,7 @@
     function escAttr(v) { return esc(v).replace(/'/g, '&#039;'); }
     function escToken(v) { return String(v).replace(/[^a-f0-9]/g, ''); }
     function courseName(courseId) {
-      return ({ bossey: 'Bossey', esery: 'Esery' })[courseId] || 'None';
+      return ({ bossey: 'Bossey', esery: 'Esery', chamonix: 'Chamonix' })[courseId] || 'None';
     }
 
     document.getElementById('matchAdminItems').addEventListener('click', async (e) => {

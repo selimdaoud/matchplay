@@ -5,6 +5,7 @@ const COURSES = {
   none: { id: 'none', name: 'None', holes: [] },
   bossey: { id: 'bossey', name: 'Bossey', file: 'bossey.csv' },
   esery: { id: 'esery', name: 'Esery', file: 'esery.csv' },
+  chamonix: { id: 'chamonix', name: 'Chamonix', file: 'chamonix.csv' },
 };
 
 function parseCourseCsv(csv) {
