@@ -163,6 +163,10 @@
           <option value="none">None</option>
         </select>
       </div>
+      <div class="form-group" id="startHoleGroup" style="display:none">
+        <label for="startHole">Trou de départ</label>
+        <select id="startHole"></select>
+      </div>
       <div class="form-group">
         <label for="matchTitle">Titre</label>
         <input type="text" id="matchTitle" placeholder="Ex: Demi-finale" />
@@ -232,6 +236,10 @@
     let matchType = 'matchplay';
     let courseNames = { none: 'None' };
 
+    document.getElementById('startHole').innerHTML = Array.from({ length: 18 }, (_value, index) => (
+      `<option value="${index + 1}">Trou ${index + 1}</option>`
+    )).join('');
+
     document.querySelectorAll('.type-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         matchType = btn.dataset.type;
@@ -239,6 +247,7 @@
         const isStrokeplay = matchType === 'strokeplay';
         const opponentInput = document.getElementById('opponent');
         document.getElementById('opponentGroup').style.display = isStrokeplay ? 'none' : '';
+        document.getElementById('startHoleGroup').style.display = isStrokeplay ? '' : 'none';
         document.getElementById('refPlayerLabel').textContent = isStrokeplay ? 'Joueur' : 'Joueur de référence';
         opponentInput.disabled = isStrokeplay;
         if (isStrokeplay) opponentInput.value = '';
@@ -361,6 +370,7 @@
         opponent: matchType === 'matchplay' ? document.getElementById('opponent').value.trim() : '',
         type: matchType,
         course: document.getElementById('courseSelect').value,
+        startHole: matchType === 'strokeplay' ? Number(document.getElementById('startHole').value) : 1,
       };
 
       try {

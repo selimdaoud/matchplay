@@ -47,19 +47,36 @@ function enrichHoles(match) {
   });
 }
 
+function strokeHoleOrder(match) {
+  const startHole = Number.isInteger(match.startHole) && match.startHole >= 1 && match.startHole <= 18
+    ? match.startHole
+    : 1;
+  return Array.from({ length: 18 }, (_value, index) => ((startHole - 1 + index) % 18) + 1);
+}
+
+function orderedStrokes(match) {
+  const order = strokeHoleOrder(match);
+  const positions = new Map(order.map((hole, index) => [hole, index]));
+  return [...(match.strokes || [])].sort((a, b) => (
+    (positions.get(a.hole) ?? Number.MAX_SAFE_INTEGER) - (positions.get(b.hole) ?? Number.MAX_SAFE_INTEGER)
+  ));
+}
+
 function strokeStatus(match) {
-  const strokes = [...(match.strokes || [])].sort((a, b) => a.hole - b.hole);
-  if (!strokes.length) return { total: '—', detail: 'Départ', finished: false, nextHole: 1 };
+  const strokes = orderedStrokes(match);
+  const order = strokeHoleOrder(match);
+  const playedHoles = new Set(strokes.map((stroke) => stroke.hole));
+  const nextHole = order.find((hole) => !playedHoles.has(hole));
+  if (!strokes.length) return { total: '—', detail: 'Départ', finished: false, nextHole: order[0] };
   const total = strokes.reduce((s, h) => s + h.score, 0);
-  const lastHole = strokes[strokes.length - 1].hole;
-  const finished = lastHole >= 18;
+  const finished = nextHole === undefined;
   return {
     total: String(total),
     detail: finished
       ? `Terminé · ${total} coup${total > 1 ? 's' : ''}`
       : `${strokes.length} trou${strokes.length > 1 ? 's' : ''} joué${strokes.length > 1 ? 's' : ''}`,
     finished,
-    nextHole: lastHole + 1,
+    nextHole,
   };
 }
 
@@ -77,7 +94,7 @@ function hasCourseData(match) {
 }
 
 function strokeCourseTotals(match) {
-  const strokes = [...(match.strokes || [])].sort((a, b) => a.hole - b.hole);
+  const strokes = orderedStrokes(match);
   let score = 0;
   let par = 0;
   let average = 0;

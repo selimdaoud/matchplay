@@ -67,7 +67,7 @@ function renderMatchCard(match, clickable) {
 
   if (match.type === 'strokeplay') {
     const status = strokeStatus(match);
-    const strokes = [...(match.strokes || [])].sort((a, b) => a.hole - b.hole);
+    const strokes = orderedStrokes(match);
     const ref = escapeHtml(match.referencePlayer || 'Joueur');
     return `
       <article class="${cls}" ${attrs}>

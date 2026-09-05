@@ -207,7 +207,7 @@ function renderStrokeHoleLabel(match, stroke) {
 
 function renderStrokeplay() {
   const match = state.match;
-  const strokes = [...(match.strokes || [])].sort((a, b) => a.hole - b.hole);
+  const strokes = orderedStrokes(match);
   const status = strokeStatus(match);
   const ref = escapeHtml(match.referencePlayer || 'Joueur');
   if (!status.finished) syncPendingStrokeScore(match, status.nextHole);

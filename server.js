@@ -39,7 +39,7 @@ app.get(paths('/new'), (_req, res) => {
 
 app.post(paths('/new'), async (req, res) => {
   try {
-    const { code, title, referencePlayer, opponent, type, course } = req.body || {};
+    const { code, title, referencePlayer, opponent, type, course, startHole } = req.body || {};
     if (!checkSessionCode(code)) {
       return res.status(401).json({ error: 'Code de session incorrect.' });
     }
@@ -51,8 +51,12 @@ app.post(paths('/new'), async (req, res) => {
     if (matchType === 'matchplay' && !opponent) {
       return res.status(400).json({ error: 'L\'adversaire est requis pour un match matchplay.' });
     }
+    const firstHole = matchType === 'strokeplay' ? Number(startHole || 1) : 1;
+    if (!Number.isInteger(firstHole) || firstHole < 1 || firstHole > 18) {
+      return res.status(400).json({ error: 'Le trou de départ doit être compris entre 1 et 18.' });
+    }
     const session = db.getActiveSession();
-    const match = db.createMatch(session.id, { title, referencePlayer, opponent: opponent || '', type: matchType, course: courseId });
+    const match = db.createMatch(session.id, { title, referencePlayer, opponent: opponent || '', type: matchType, course: courseId, startHole: firstHole });
     const recorderUrl = `${req.protocol}://${req.get('host')}${BASE_PATH}/match/${match.token}`;
     const qrDataUrl = await QRCode.toDataURL(recorderUrl);
     res.json({ token: match.token, recorderUrl, qrDataUrl });
@@ -125,7 +129,7 @@ app.put(paths('/api/match/:token/strokes/:hole'), (req, res) => {
     if (match.type !== 'strokeplay') return res.status(400).json({ error: 'Ce match n\'est pas en strokeplay.' });
 
     const holeNumber = Number(req.params.hole);
-    if (!Number.isInteger(holeNumber) || holeNumber < 1 || holeNumber > 99) {
+    if (!Number.isInteger(holeNumber) || holeNumber < 1 || holeNumber > 18) {
       return res.status(400).json({ error: 'Numéro de trou invalide.' });
     }
 
