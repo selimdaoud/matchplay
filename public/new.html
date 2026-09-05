@@ -161,9 +161,6 @@
         <label for="courseSelect">Parcours</label>
         <select id="courseSelect">
           <option value="none">None</option>
-          <option value="bossey">Bossey</option>
-          <option value="esery">Esery</option>
-          <option value="chamonix">Chamonix</option>
         </select>
       </div>
       <div class="form-group">
@@ -233,12 +230,7 @@
     let recorderUrl = '';
     let matchList = [];
     let matchType = 'matchplay';
-    const fallbackCourses = [
-      { id: 'none', name: 'None' },
-      { id: 'bossey', name: 'Bossey' },
-      { id: 'esery', name: 'Esery' },
-      { id: 'chamonix', name: 'Chamonix' },
-    ];
+    let courseNames = { none: 'None' };
 
     document.querySelectorAll('.type-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -262,14 +254,16 @@
         if (!res.ok) throw new Error('courses');
         renderCourses(await res.json());
       } catch (_) {
-        renderCourses(fallbackCourses);
+        renderCourses([{ id: 'none', name: 'None' }]);
       }
     }
 
     function renderCourses(courses) {
+      courseNames = Object.fromEntries(courses.map((course) => [course.id, course.name]));
       document.getElementById('courseSelect').innerHTML = courses.map((course) => (
         `<option value="${escAttr(course.id)}">${esc(course.name)}</option>`
       )).join('');
+      if (matchList.length) renderMatchList();
     }
 
     // ── Match list ─────────────────────────────────────────────────────────────
@@ -321,7 +315,7 @@
     function escAttr(v) { return esc(v).replace(/'/g, '&#039;'); }
     function escToken(v) { return String(v).replace(/[^a-f0-9]/g, ''); }
     function courseName(courseId) {
-      return ({ bossey: 'Bossey', esery: 'Esery', chamonix: 'Chamonix' })[courseId] || 'None';
+      return courseNames[courseId] || courseId;
     }
 
     document.getElementById('matchAdminItems').addEventListener('click', async (e) => {
