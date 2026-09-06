@@ -39,8 +39,8 @@ LE JOUR J
        - Strokeplay : joueur seul
   4. Choisir le parcours :
        - None : pas de parcours sélectionné
-       - Bossey : charge les pars et scores moyens du parcours
-       - Esery : option disponible, données à compléter
+       - La liste est générée automatiquement depuis les fichiers CSV présents
+         dans data/courses (ex. chamonix.csv apparaît sous le nom Chamonix)
   5. Remplir le titre et les joueurs demandés
   6. Cliquer "Créer le match"
   7. La page affiche :
